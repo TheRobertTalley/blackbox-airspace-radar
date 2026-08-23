@@ -6,6 +6,10 @@ import type { Aircraft, LivePayload, ReceiverStatus } from './types';
 const endpointKey = 'blackbox-airspace-api';
 const receiverApiBase = 'https://blackbox.tailade622.ts.net';
 const defaultApiBase = location.hostname === 'blackbox.tailade622.ts.net' ? location.origin : receiverApiBase;
+const lulaCityHall: L.LatLngExpression = [34.389096, -83.664491];
+const receiverViewZoom = 10;
+// Initial 275-position sample: 95% within 9.92 NM; farthest observed fix 10.85 NM.
+const demonstratedRangeNm = 11;
 const elements = {
   clock: document.querySelector<HTMLElement>('#clock')!,
   connectionButton: document.querySelector<HTMLButtonElement>('#connection-button')!,
@@ -26,7 +30,7 @@ const elements = {
   clearApi: document.querySelector<HTMLButtonElement>('#clear-api')!
 };
 
-const map: LeafletMap = L.map('map', { zoomControl: false, attributionControl: true }).setView([39.5, -98.35], 4);
+const map: LeafletMap = L.map('map', { zoomControl: false, attributionControl: true }).setView(lulaCityHall, receiverViewZoom);
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
   subdomains: 'abcd', maxZoom: 20,
@@ -119,17 +123,17 @@ function drawReceiver(status: ReceiverStatus) {
   const { latitude, longitude, label } = status.receiver;
   if (!latitude && !longitude) return;
   if (!centeredOnReceiver) {
-    map.setView([latitude, longitude], 8);
+    map.setView([latitude, longitude], receiverViewZoom);
     centeredOnReceiver = true;
   }
   rangeLayer.clearLayers();
   L.circleMarker([latitude, longitude], { radius: 5, color: '#72f1b8', weight: 2, fillColor: '#071015', fillOpacity: 1 })
     .bindTooltip(label || 'HOME RECEIVER').addTo(rangeLayer);
-  [10, 25, 50, 100].forEach((nauticalMiles) => {
+  [5, demonstratedRangeNm].forEach((nauticalMiles) => {
     new Circle([latitude, longitude], {
       radius: nauticalMiles * 1852,
       color: '#4aa8a0', weight: 1, opacity: 0.32, fillOpacity: 0, dashArray: '4 8'
-    }).bindTooltip(`${nauticalMiles} NM`).addTo(rangeLayer);
+    }).bindTooltip(nauticalMiles === demonstratedRangeNm ? `DEMONSTRATED RX · ${nauticalMiles} NM` : `${nauticalMiles} NM`).addTo(rangeLayer);
   });
 }
 
