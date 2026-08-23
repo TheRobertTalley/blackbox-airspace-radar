@@ -21,10 +21,24 @@ test('rejects unconfigured cross-origin callers', () => {
 
 test('groups historical rows into GeoJSON tracks', () => {
   const result = groupTracks([
-    { icao: 'ABC123', longitude: -75, latitude: 40, altitude_ft: 10000, observed_at: 1 },
-    { icao: 'ABC123', longitude: -74.9, latitude: 40.1, altitude_ft: 11000, observed_at: 2 }
+    { icao: 'ABC123', callsign: 'TEST1', longitude: -75, latitude: 40, altitude_ft: 10000, observed_at: 1 },
+    { icao: 'ABC123', callsign: 'TEST1', longitude: -74.9, latitude: 40.1, altitude_ft: 11000, observed_at: 2 }
   ]);
   assert.equal(result.features.length, 1);
   assert.equal(result.features[0].geometry.type, 'LineString');
   assert.equal(result.features[0].geometry.coordinates.length, 2);
+  assert.equal(result.features[0].properties.callsign, 'TEST1');
+  assert.equal(result.features[0].properties.pointCount, 2);
+  assert.equal(result.features[0].properties.altitudeFt, 11000);
+});
+
+test('splits repeated aircraft into separate flights and keeps singleton tracks visible', () => {
+  const result = groupTracks([
+    { icao: 'ABC123', callsign: 'FIRST1', longitude: -75, latitude: 40, altitude_ft: 10000, observed_at: 1 },
+    { icao: 'ABC123', callsign: 'SECOND2', longitude: -74, latitude: 41, altitude_ft: 12000, observed_at: 20 * 60 * 1000 }
+  ]);
+  assert.equal(result.features.length, 2);
+  assert.equal(result.features[0].properties.pointCount, 1);
+  assert.equal(result.features[0].geometry.coordinates.length, 2);
+  assert.equal(result.features[1].properties.callsign, 'SECOND2');
 });

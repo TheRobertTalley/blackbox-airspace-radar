@@ -48,18 +48,49 @@ export function corsOriginAllowed(origin, configured) {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 }
 
-export function groupTracks(rows) {
-  const tracks = new Map();
-  for (const row of rows) {
-    if (!tracks.has(row.icao)) tracks.set(row.icao, []);
-    tracks.get(row.icao).push([row.longitude, row.latitude, row.altitude_ft, row.observed_at]);
+export function groupTracks(rows, segmentGapMs = 15 * 60 * 1000) {
+  const tracks = [];
+  const sorted = [...rows].sort((left, right) => left.icao.localeCompare(right.icao) || left.observed_at - right.observed_at);
+  let current = null;
+  for (const row of sorted) {
+    const beginsNewTrack = !current
+      || current.icao !== row.icao
+      || row.observed_at - current.lastObservedAt > segmentGapMs;
+    if (beginsNewTrack) {
+      current = {
+        icao: row.icao,
+        callsign: '',
+        coordinates: [],
+        firstObservedAt: row.observed_at,
+        lastObservedAt: row.observed_at,
+        altitudeFt: null
+      };
+      tracks.push(current);
+    }
+    current.coordinates.push([row.longitude, row.latitude, row.altitude_ft, row.observed_at]);
+    current.lastObservedAt = row.observed_at;
+    if (typeof row.callsign === 'string' && row.callsign.trim()) current.callsign = row.callsign.trim();
+    if (Number.isFinite(Number(row.altitude_ft))) current.altitudeFt = Number(row.altitude_ft);
   }
   return {
     type: 'FeatureCollection',
-    features: [...tracks.entries()].map(([icao, coordinates]) => ({
-      type: 'Feature',
-      properties: { icao },
-      geometry: { type: 'LineString', coordinates }
-    }))
+    features: tracks.map((track, index) => {
+      const coordinates = track.coordinates.length === 1
+        ? [track.coordinates[0], track.coordinates[0]]
+        : track.coordinates;
+      return {
+        type: 'Feature',
+        properties: {
+          trackId: `${track.icao}-${track.firstObservedAt}-${index}`,
+          icao: track.icao,
+          callsign: track.callsign,
+          pointCount: track.coordinates.length,
+          firstObservedAt: new Date(track.firstObservedAt).toISOString(),
+          lastObservedAt: new Date(track.lastObservedAt).toISOString(),
+          altitudeFt: track.altitudeFt
+        },
+        geometry: { type: 'LineString', coordinates }
+      };
+    })
   };
 }
