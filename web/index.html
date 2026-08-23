@@ -41,7 +41,7 @@
 
         <aside class="traffic-panel glass" aria-label="Aircraft list">
           <div class="panel-heading">
-            <div><p id="traffic-mode" class="eyebrow">LIVE + 24H HISTORY</p><h1>AIRCRAFT</h1></div>
+            <div><p id="traffic-mode" class="eyebrow">LIVE TRAFFIC</p><h1>AIRCRAFT</h1></div>
             <label class="search"><span class="sr-only">Filter aircraft</span><input id="aircraft-filter" type="search" placeholder="CALLSIGN / ICAO" autocomplete="off" /></label>
           </div>
           <div class="aircraft-list-head"><span>IDENT</span><span>ALT</span><span>SPD/PTS</span><span>AGE</span></div>
@@ -51,12 +51,12 @@
         </aside>
 
         <section class="timeline glass" aria-label="Track history controls">
-          <div><p class="eyebrow">TRACK WINDOW</p><strong id="window-label">LAST 24 HOURS</strong></div>
+          <div><p class="eyebrow">TRACK WINDOW</p><strong id="window-label">LIVE</strong></div>
           <div class="window-options" role="group" aria-label="History window">
-            <button class="window-button" data-hours="0" type="button">LIVE</button>
+            <button class="window-button active" data-hours="0" type="button">LIVE</button>
             <button class="window-button" data-hours="1" type="button">1H</button>
             <button class="window-button" data-hours="6" type="button">6H</button>
-            <button class="window-button active" data-hours="24" type="button">24H</button>
+            <button class="window-button" data-hours="24" type="button">24H</button>
             <button class="window-button" data-hours="168" type="button">7D</button>
           </div>
           <div class="timeline-status"><span id="last-update">NO RECEIVER DATA</span></div>

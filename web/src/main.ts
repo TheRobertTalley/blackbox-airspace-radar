@@ -64,7 +64,7 @@ let selectedHistoryTrackId = '';
 let eventSource: EventSource | null = null;
 let apiBase = localStorage.getItem(endpointKey)?.trim() || defaultApiBase;
 let centeredOnReceiver = false;
-let selectedHistoryHours = 24;
+let selectedHistoryHours = 0;
 let selectedHistoryPoints = 0;
 let storedHistoryRecords = 0;
 
