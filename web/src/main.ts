@@ -264,7 +264,7 @@ function connect() {
   eventSource.addEventListener('aircraft', (event) => {
     try { applyPayload(JSON.parse((event as MessageEvent).data) as LivePayload); } catch { setConnection(false, 'invalid receiver data'); }
   });
-  eventSource.onerror = () => setConnection(false, 'private link unavailable');
+  eventSource.onerror = () => setConnection(false, 'receiver feed unavailable');
 }
 
 async function showHistory(hours: number) {
@@ -344,7 +344,7 @@ elements.form.addEventListener('submit', (event) => {
   try {
     const candidate = elements.apiUrl.value.trim().replace(/\/$/, '');
     const parsed = new URL(candidate);
-    if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') throw new Error('Use the private HTTPS address from Tailscale Serve.');
+    if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') throw new Error('Use the HTTPS receiver address.');
     apiBase = parsed.origin;
     localStorage.setItem(endpointKey, apiBase);
     elements.dialog.close();

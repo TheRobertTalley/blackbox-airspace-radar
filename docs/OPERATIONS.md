@@ -1,10 +1,10 @@
 # Operations
 
-## Private configuration
+## Local configuration
 
 Copy `service/config.example.json` to `service/config.json`. Set the receiver
-coordinates after rounding both values to two decimal places. Set
-`allowedOrigin` to the GitHub Pages origin; do not include the repository path.
+to a public reference point instead of a home address. Set `allowedOrigins` to
+the GitHub Pages and BlackBox HTTPS origins; do not include repository paths.
 
 ## Receiver lifecycle
 
@@ -31,16 +31,19 @@ The receiver currently negotiates USB Hi-Speed. That is sufficient for the
 verified 2.4 MS/s receive stream; a SuperSpeed cable is not required for this
 ADS-B configuration.
 
-## Private HTTPS
+## Public HTTPS
 
-Once the API is healthy on loopback, expose only that listener to the tailnet:
+Once the API is healthy on loopback, expose only that read-only listener through
+Tailscale Funnel:
 
 ```powershell
-tailscale serve --bg 8788
-tailscale serve status
+tailscale funnel --bg --yes 8788
+tailscale funnel status
 ```
 
-Do not use `tailscale funnel`.
+Funnel must report `Available on the internet` and continue proxying only to
+`http://127.0.0.1:8788`. The server has no mutation, transmitter, shell, or
+arbitrary-file routes.
 
 ## Recovery
 
