@@ -12,9 +12,11 @@ test('normalizes readsb aircraft without inventing missing values', () => {
 });
 
 test('rejects unconfigured cross-origin callers', () => {
-  assert.equal(corsOriginAllowed('https://owner.github.io', 'https://owner.github.io'), true);
-  assert.equal(corsOriginAllowed('http://localhost:5173', 'https://owner.github.io'), true);
-  assert.equal(corsOriginAllowed('https://attacker.example', 'https://owner.github.io'), false);
+  const configured = ['https://owner.github.io', 'https://blackbox.example.ts.net'];
+  assert.equal(corsOriginAllowed('https://owner.github.io', configured), true);
+  assert.equal(corsOriginAllowed('https://blackbox.example.ts.net', configured), true);
+  assert.equal(corsOriginAllowed('http://localhost:5173', configured), true);
+  assert.equal(corsOriginAllowed('https://attacker.example', configured), false);
 });
 
 test('groups historical rows into GeoJSON tracks', () => {

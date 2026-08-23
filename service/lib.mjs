@@ -35,12 +35,16 @@ export function loadConfig(configPath) {
   const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   raw.readsbJsonPath = expandPath(raw.readsbJsonPath);
   raw.databasePath = expandPath(raw.databasePath);
+  raw.allowedOrigins = Array.isArray(raw.allowedOrigins)
+    ? raw.allowedOrigins
+    : [raw.allowedOrigin].filter(Boolean);
   return raw;
 }
 
 export function corsOriginAllowed(origin, configured) {
   if (!origin) return true;
-  if (origin === configured) return true;
+  const allowed = Array.isArray(configured) ? configured : [configured];
+  if (allowed.includes(origin)) return true;
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 }
 

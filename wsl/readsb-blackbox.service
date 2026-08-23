@@ -1,0 +1,19 @@
+[Unit]
+Description=BlackBox receive-only ADS-B software decoder
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -o pipefail -c '/usr/bin/nc -l -p 30005 | /opt/blackbox-airspace/bin/readsb --device-type ifile --ifile=- --iformat=SC16Q11 --net --net-bind-address=127.0.0.1 --net-ri-port=30001 --write-json=/run/readsb-blackbox --write-json-every=1'
+Restart=always
+RestartSec=2
+RuntimeDirectory=readsb-blackbox
+RuntimeDirectoryMode=0755
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/readsb-blackbox
+
+[Install]
+WantedBy=multi-user.target

@@ -5,7 +5,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $runtime = Join-Path $ProjectRoot 'runtime'
 $receiver = Join-Path $runtime 'receiver\bladerf_adsb_rx.exe'
-$fpga = Join-Path $runtime 'receiver\adsbx40.rbf'
 $config = Join-Path $ProjectRoot 'service\config.json'
 $apiLog = Join-Path $runtime 'api.log'
 $apiErrorLog = Join-Path $runtime 'api-error.log'
@@ -13,7 +12,6 @@ $rxLog = Join-Path $runtime 'rx-frames.log'
 $rxErrorLog = Join-Path $runtime 'rx-status.log'
 
 if (-not (Test-Path $receiver)) { throw 'Receiver executable is missing. Run receiver/windows/build.ps1.' }
-if (-not (Test-Path $fpga)) { throw 'ADS-B FPGA is missing. Run scripts/install-runtime.ps1.' }
 if (-not (Test-Path $config)) { throw 'Private service/config.json is missing.' }
 
 wsl.exe -d Ubuntu -u root -- systemctl start readsb-blackbox.service
@@ -41,7 +39,7 @@ if ($rxProcess) {
     Write-Host "RX bridge already running (PID $($rxProcess.ProcessId))."
 } else {
     $rx = Start-Process -FilePath $receiver `
-        -ArgumentList @($fpga, '127.0.0.1', '30001') `
+        -ArgumentList @('127.0.0.1', '30005') `
         -WorkingDirectory (Split-Path $receiver) `
         -RedirectStandardOutput $rxLog `
         -RedirectStandardError $rxErrorLog `

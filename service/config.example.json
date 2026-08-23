@@ -3,7 +3,10 @@
   "port": 8788,
   "readsbJsonPath": "\\\\wsl.localhost\\Ubuntu\\run\\readsb-blackbox\\aircraft.json",
   "databasePath": "%LOCALAPPDATA%\\BlackBoxAirspaceRadar\\history.sqlite",
-  "allowedOrigin": "https://YOUR-GITHUB-USER.github.io",
+  "allowedOrigins": [
+    "https://YOUR-GITHUB-USER.github.io",
+    "https://YOUR-BLACKBOX.YOUR-TAILNET.ts.net"
+  ],
   "receiver": {
     "latitude": 0,
     "longitude": 0,

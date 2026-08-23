@@ -6,6 +6,7 @@ import { corsOriginAllowed, groupTracks, loadConfig, normalizeAircraft } from '.
 
 const configPath = process.env.RADAR_CONFIG || path.join(import.meta.dirname, 'config.json');
 const config = loadConfig(configPath);
+const webRoot = path.resolve(import.meta.dirname, '..', 'web', 'dist');
 fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
 
 const db = new DatabaseSync(config.databasePath);
@@ -33,6 +34,7 @@ const insertObservation = db.prepare(`
 const countHistory = db.prepare('SELECT COUNT(*) AS count FROM observations');
 let aircraft = [];
 let sourceGeneratedAt = null;
+let sourceMessageCount = 0;
 let lastReadAt = null;
 let lastError = null;
 const streams = new Set();
@@ -41,7 +43,7 @@ function responseJson(response, status, body, origin) {
   response.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': origin || config.allowedOrigin,
+    'Access-Control-Allow-Origin': origin || config.allowedOrigins[0],
     'Vary': 'Origin',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer'
@@ -49,14 +51,39 @@ function responseJson(response, status, body, origin) {
   response.end(JSON.stringify(body));
 }
 
+function serveWeb(pathname, response) {
+  const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
+  if (relativePath !== 'index.html' && !/^assets\/[A-Za-z0-9._-]+$/.test(relativePath)) return false;
+  const filePath = path.join(webRoot, relativePath);
+  if (!filePath.startsWith(`${webRoot}${path.sep}`) || !fs.existsSync(filePath)) return false;
+  const extension = path.extname(filePath);
+  const contentType = extension === '.html'
+    ? 'text/html; charset=utf-8'
+    : extension === '.js'
+      ? 'text/javascript; charset=utf-8'
+      : extension === '.css'
+        ? 'text/css; charset=utf-8'
+        : 'application/octet-stream';
+  response.writeHead(200, {
+    'Content-Type': contentType,
+    'Cache-Control': extension === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer'
+  });
+  fs.createReadStream(filePath).pipe(response);
+  return true;
+}
+
 function statusPayload() {
   const age = lastReadAt ? Math.max(0, (Date.now() - lastReadAt) / 1000) : null;
   return {
     ok: age !== null && age < 5 && !lastError,
     rxOnly: true,
-    source: 'bladeRF x40 / Nuand ADS-B FPGA / readsb',
+    source: 'bladeRF x40 / hosted FPGA / readsb software decoder',
     aircraftCount: aircraft.length,
     positionedCount: aircraft.filter((item) => item.latitude !== null && item.longitude !== null).length,
+    messageCount: sourceMessageCount,
+    hasReceivedMessages: sourceMessageCount > 0,
     dataAgeSeconds: age,
     generatedAt: sourceGeneratedAt,
     lastError,
@@ -80,6 +107,7 @@ function pollReadsb() {
       .filter(Boolean)
       .filter((item) => item.seenSeconds <= 60);
     sourceGeneratedAt = Number.isFinite(raw.now) ? new Date(raw.now * 1000).toISOString() : new Date(now).toISOString();
+    sourceMessageCount = Number.isFinite(raw.messages) ? raw.messages : 0;
     lastReadAt = now;
     lastError = null;
 
@@ -118,13 +146,15 @@ function enforceRetention() {
 }
 
 const server = http.createServer((request, response) => {
+  const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+  if (request.method === 'GET' && serveWeb(url.pathname, response)) return;
   const origin = request.headers.origin;
-  if (!corsOriginAllowed(origin, config.allowedOrigin)) {
-    return responseJson(response, 403, { error: 'origin not allowed' }, config.allowedOrigin);
+  if (!corsOriginAllowed(origin, config.allowedOrigins)) {
+    return responseJson(response, 403, { error: 'origin not allowed' }, config.allowedOrigins[0]);
   }
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
-      'Access-Control-Allow-Origin': origin || config.allowedOrigin,
+      'Access-Control-Allow-Origin': origin || config.allowedOrigins[0],
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '600',
@@ -134,7 +164,6 @@ const server = http.createServer((request, response) => {
   }
   if (request.method !== 'GET') return responseJson(response, 405, { error: 'read-only service' }, origin);
 
-  const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
   if (url.pathname === '/health') return responseJson(response, statusPayload().ok ? 200 : 503, statusPayload(), origin);
   if (url.pathname === '/api/v1/status') return responseJson(response, 200, statusPayload(), origin);
   if (url.pathname === '/api/v1/aircraft') return responseJson(response, 200, { generatedAt: sourceGeneratedAt, aircraft }, origin);
@@ -153,7 +182,7 @@ const server = http.createServer((request, response) => {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': origin || config.allowedOrigin,
+      'Access-Control-Allow-Origin': origin || config.allowedOrigins[0],
       'Vary': 'Origin'
     });
     streams.add(response);

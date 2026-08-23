@@ -6,7 +6,7 @@ source_root=/usr/local/src/readsb-blackbox
 run_root=/run/readsb-blackbox
 
 sudo apt-get update
-sudo apt-get install -y --no-install-recommends build-essential git libncurses-dev libzstd-dev pkg-config zlib1g-dev
+sudo apt-get install -y --no-install-recommends build-essential git libncurses-dev libzstd-dev netcat-openbsd pkg-config zlib1g-dev
 
 if [[ ! -d "$source_root/.git" ]]; then
   sudo git clone --depth 20 https://github.com/wiedehopf/readsb.git "$source_root"
@@ -19,12 +19,12 @@ sudo install -Dm755 "$source_root/readsb" "$install_root/bin/readsb"
 
 sudo tee /etc/systemd/system/readsb-blackbox.service >/dev/null <<'UNIT'
 [Unit]
-Description=BlackBox receive-only ADS-B decoder
+Description=BlackBox receive-only ADS-B software decoder
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/opt/blackbox-airspace/bin/readsb --net --net-only --net-bind-address=127.0.0.1 --net-ri-port=30001 --write-json=/run/readsb-blackbox --write-json-every=1
+ExecStart=/bin/bash -o pipefail -c '/usr/bin/nc -l -p 30005 | /opt/blackbox-airspace/bin/readsb --device-type ifile --ifile=- --iformat=SC16Q11 --net --net-bind-address=127.0.0.1 --net-ri-port=30001 --write-json=/run/readsb-blackbox --write-json-every=1'
 Restart=always
 RestartSec=2
 RuntimeDirectory=readsb-blackbox

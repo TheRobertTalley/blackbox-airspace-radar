@@ -96,7 +96,7 @@ button { color: inherit; }
   .topbar { height: 60px; padding: 0 12px; }.workspace { height: calc(100% - 60px); }.connection { padding: 9px; }.connection #connection-label { display: none; }
   .telemetry-panel { top: 10px; left: 10px; width: calc(100% - 20px); padding: 10px 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .telemetry-panel > .eyebrow, .telemetry-panel .receiver-line, .telemetry-panel .rx-lock { display: none; }.metric.primary, .metric-row { border: 0; }.metric-row { display: contents; }.metric-row .metric + .metric { border: 0; padding-left: 0; }.metric { padding: 0; }.metric.primary strong { font-size: 26px; margin: 3px 0 0; }.metric strong { font-size: 18px; }
-  .traffic-panel { top: auto; left: 10px; right: 10px; bottom: 74px; width: auto; height: 220px; }.panel-heading { padding: 10px 12px; }.panel-heading h1 { font-size: 16px; }.search input { width: 130px; }.aircraft-row { padding: 9px 12px; }
+  .traffic-panel { top: auto; left: 10px; right: 10px; bottom: 94px; width: auto; height: 220px; }.panel-heading { padding: 10px 12px; }.panel-heading h1 { font-size: 16px; }.search input { width: 130px; }.aircraft-row { padding: 9px 12px; }
   .timeline { left: 10px; right: 10px; bottom: 10px; min-height: 54px; padding: 8px; grid-template-columns: 70px 1fr; gap: 8px; }.window-options { gap: 2px; }.window-button { min-width: 0; }
   .leaflet-bottom.leaflet-left { bottom: 290px; }
   .leaflet-bottom.leaflet-right { top: 92px; bottom: auto; }

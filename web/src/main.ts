@@ -4,6 +4,8 @@ import './style.css';
 import type { Aircraft, LivePayload, ReceiverStatus } from './types';
 
 const endpointKey = 'blackbox-airspace-api';
+const receiverApiBase = 'https://blackbox.tailade622.ts.net';
+const defaultApiBase = location.hostname === 'blackbox.tailade622.ts.net' ? location.origin : receiverApiBase;
 const elements = {
   clock: document.querySelector<HTMLElement>('#clock')!,
   connectionButton: document.querySelector<HTMLButtonElement>('#connection-button')!,
@@ -38,8 +40,9 @@ const markers = new Map<string, Marker>();
 let currentAircraft: Aircraft[] = [];
 let selectedIcao = '';
 let eventSource: EventSource | null = null;
-let apiBase = localStorage.getItem(endpointKey) || '';
+let apiBase = localStorage.getItem(endpointKey)?.trim() || defaultApiBase;
 let centeredOnReceiver = false;
+let selectedHistoryHours = 24;
 
 function aircraftIcon(item: Aircraft, selected = false) {
   const rotation = item.trackDeg ?? 0;
@@ -90,7 +93,7 @@ function renderList() {
     .filter((item) => !query || item.icao.includes(query) || item.callsign.toUpperCase().includes(query))
     .sort((left, right) => left.seenSeconds - right.seenSeconds || (right.altitudeFt ?? 0) - (left.altitudeFt ?? 0));
   if (!items.length) {
-    elements.list.innerHTML = `<div class="empty-list"><strong>${currentAircraft.length ? 'NO MATCHES' : 'NO LIVE DATA'}</strong><span>${currentAircraft.length ? 'Adjust the aircraft filter.' : 'Connect the private receiver to begin.'}</span></div>`;
+    elements.list.innerHTML = `<div class="empty-list"><strong>${currentAircraft.length ? 'NO MATCHES' : 'NO LIVE TRAFFIC'}</strong><span>${currentAircraft.length ? 'Adjust the aircraft filter.' : 'Waiting for aircraft received by BlackBox.'}</span></div>`;
     return;
   }
   elements.list.innerHTML = items.map((item) => `
@@ -136,7 +139,8 @@ function applyPayload(payload: LivePayload) {
   elements.aircraftCount.textContent = String(payload.status.aircraftCount);
   elements.positionedCount.textContent = String(payload.status.positionedCount);
   elements.dataAge.textContent = payload.status.dataAgeSeconds === null ? '--' : payload.status.dataAgeSeconds.toFixed(1);
-  elements.receiverSource.textContent = payload.status.source.toUpperCase();
+  elements.receiverSource.textContent = 'BLADERF X40 / 1090 MHZ RX';
+  elements.receiverSource.title = payload.status.source;
   elements.historyCount.textContent = `${payload.status.historyRecords.toLocaleString()} POINTS`;
   elements.lastUpdate.textContent = payload.status.generatedAt ? `UPDATED ${new Date(payload.status.generatedAt).toLocaleTimeString()}` : 'WAITING FOR DATA';
   setConnection(payload.status.ok, payload.status.lastError);
@@ -162,6 +166,7 @@ function connect() {
 }
 
 async function showHistory(hours: number) {
+  selectedHistoryHours = hours;
   document.querySelectorAll<HTMLButtonElement>('.window-button').forEach((button) => button.classList.toggle('active', Number(button.dataset.hours) === hours));
   elements.windowLabel.textContent = hours === 0
     ? 'LIVE'
@@ -173,7 +178,13 @@ async function showHistory(hours: number) {
     const response = await fetch(`${apiBase}/api/v1/tracks?since=${encodeURIComponent(since)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const geojson = await response.json() as GeoJSON.FeatureCollection;
-    L.geoJSON(geojson, { style: { color: '#72f1b8', weight: 1.5, opacity: 0.65 } }).addTo(trackLayer);
+    L.geoJSON(geojson, {
+      style: { color: '#72f1b8', weight: 1.5, opacity: 0.65 },
+      onEachFeature: (feature, layer) => {
+        const icao = typeof feature.properties?.icao === 'string' ? feature.properties.icao.toUpperCase() : '';
+        if (icao) layer.bindTooltip(`ICAO ${icao}`);
+      }
+    }).addTo(trackLayer);
   } catch {
     elements.lastUpdate.textContent = 'HISTORY UNAVAILABLE';
   }
@@ -200,13 +211,17 @@ elements.form.addEventListener('submit', (event) => {
 });
 elements.clearApi.addEventListener('click', () => {
   localStorage.removeItem(endpointKey);
-  apiBase = '';
-  elements.apiUrl.value = '';
+  apiBase = defaultApiBase;
+  elements.apiUrl.value = defaultApiBase;
   eventSource?.close();
-  setConnection(false);
+  elements.dialog.close();
+  connect();
+  void showHistory(selectedHistoryHours);
 });
 elements.filter.addEventListener('input', renderList);
 document.querySelectorAll<HTMLButtonElement>('.window-button').forEach((button) => button.addEventListener('click', () => void showHistory(Number(button.dataset.hours))));
 
 setInterval(() => { elements.clock.textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 250);
+setInterval(() => { if (selectedHistoryHours) void showHistory(selectedHistoryHours); }, 60000);
 connect();
+void showHistory(selectedHistoryHours);
