@@ -1,0 +1,10 @@
+node_modules/
+web/dist/
+runtime/
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+receiver.env
+service/config.json

@@ -1,0 +1,15 @@
+{
+  "host": "127.0.0.1",
+  "port": 8789,
+  "readsbJsonPath": "%USERPROFILE%\\Documents\\Codex\\2026-08-22\\the-board-is-plugged-in-via\\blackbox-airspace-radar\\service\\test\\fixtures\\aircraft.json",
+  "databasePath": "%LOCALAPPDATA%\\BlackBoxAirspaceRadar\\ui-test.sqlite",
+  "allowedOrigin": "http://127.0.0.1:4173",
+  "receiver": {
+    "latitude": 40.0,
+    "longitude": -75.0,
+    "label": "QA RECEIVER"
+  },
+  "historyDays": 7,
+  "maxDatabaseBytes": 536870912,
+  "sampleIntervalSeconds": 10
+}

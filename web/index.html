@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071015" />
+    <meta name="description" content="Private receive-only home airspace radar" />
+    <title>BlackBox Airspace</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand" aria-label="BlackBox Airspace">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span><strong>BLACKBOX</strong><small>AIRSPACE</small></span>
+        </div>
+        <div class="mission-clock">
+          <span>LOCAL MISSION TIME</span>
+          <strong id="clock">--:--:--</strong>
+        </div>
+        <button id="connection-button" class="connection is-offline" type="button" aria-haspopup="dialog">
+          <span class="status-light"></span>
+          <span id="connection-label">RECEIVER OFFLINE</span>
+        </button>
+      </header>
+
+      <main class="workspace">
+        <section id="map" aria-label="Live aircraft map"></section>
+
+        <aside class="telemetry-panel glass" aria-label="Receiver telemetry">
+          <p class="eyebrow">RECEIVER / RX ONLY</p>
+          <div class="metric primary"><span>TRACKED</span><strong id="aircraft-count">0</strong><small>AIRCRAFT</small></div>
+          <div class="metric-row">
+            <div class="metric"><span>POSITIONED</span><strong id="positioned-count">0</strong></div>
+            <div class="metric"><span>DATA AGE</span><strong id="data-age">--</strong><small>SEC</small></div>
+          </div>
+          <div class="receiver-line"><span>LINK</span><strong id="receiver-source">WAITING FOR BLACKBOX</strong></div>
+          <div class="receiver-line"><span>HISTORY</span><strong id="history-count">0 POINTS</strong></div>
+          <div class="rx-lock"><span aria-hidden="true">◉</span> TRANSMIT PATH DISABLED</div>
+        </aside>
+
+        <aside class="traffic-panel glass" aria-label="Aircraft list">
+          <div class="panel-heading">
+            <div><p class="eyebrow">LOCAL TRAFFIC</p><h1>AIRCRAFT</h1></div>
+            <label class="search"><span class="sr-only">Filter aircraft</span><input id="aircraft-filter" type="search" placeholder="CALLSIGN / ICAO" autocomplete="off" /></label>
+          </div>
+          <div class="aircraft-list-head"><span>IDENT</span><span>ALT</span><span>SPD</span><span>AGE</span></div>
+          <div id="aircraft-list" class="aircraft-list" tabindex="0">
+            <div class="empty-list"><strong>NO LIVE DATA</strong><span>Connect the private receiver to begin.</span></div>
+          </div>
+        </aside>
+
+        <section class="timeline glass" aria-label="Track history controls">
+          <div><p class="eyebrow">TRACK WINDOW</p><strong id="window-label">LIVE</strong></div>
+          <div class="window-options" role="group" aria-label="History window">
+            <button class="window-button active" data-hours="0" type="button">LIVE</button>
+            <button class="window-button" data-hours="1" type="button">1H</button>
+            <button class="window-button" data-hours="6" type="button">6H</button>
+            <button class="window-button" data-hours="24" type="button">24H</button>
+            <button class="window-button" data-hours="168" type="button">7D</button>
+          </div>
+          <div class="timeline-status"><span id="last-update">NO RECEIVER DATA</span></div>
+        </section>
+      </main>
+
+      <dialog id="settings-dialog" class="settings-dialog">
+        <form id="settings-form" method="dialog">
+          <div class="dialog-heading"><div><p class="eyebrow">PRIVATE LINK</p><h2>Connect BlackBox</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></div>
+          <p>Enter the private HTTPS address created by Tailscale Serve. It stays in this browser and is never sent to GitHub.</p>
+          <label>Receiver API URL<input id="api-url" type="url" placeholder="https://blackbox.your-tailnet.ts.net" spellcheck="false" /></label>
+          <div id="settings-error" class="form-error" role="alert"></div>
+          <div class="dialog-actions"><button id="clear-api" class="secondary-button" type="button">Clear</button><button class="primary-button" value="default" type="submit">Connect</button></div>
+        </form>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "now": 1787463000,
+  "messages": 4821,
+  "aircraft": [
+    {
+      "hex": "a1b2c3",
+      "flight": "TEST01",
+      "lat": 40.18,
+      "lon": -74.86,
+      "alt_baro": 12400,
+      "gs": 238,
+      "track": 47,
+      "baro_rate": 640,
+      "squawk": "1200",
+      "category": "A3",
+      "seen": 0.4,
+      "rssi": -18.2,
+      "messages": 245
+    },
+    {
+      "hex": "d4e5f6",
+      "flight": "BOX742",
+      "lat": 39.89,
+      "lon": -75.22,
+      "alt_baro": 28750,
+      "gs": 418,
+      "track": 193,
+      "baro_rate": -960,
+      "squawk": "3421",
+      "category": "A5",
+      "seen": 1.2,
+      "rssi": -26.4,
+      "messages": 98
+    }
+  ]
+}

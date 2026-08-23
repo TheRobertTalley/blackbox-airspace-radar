@@ -1,0 +1,15 @@
+{
+  "name": "blackbox-airspace-radar",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Receive-only bladeRF ADS-B radar with a private local API and GitHub Pages frontend.",
+  "scripts": {
+    "build": "npm --prefix web run build",
+    "dev": "npm --prefix web run dev",
+    "test": "node --test service/test/*.test.mjs && npm --prefix web run test",
+    "test:service": "node --test service/test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
