@@ -157,8 +157,9 @@ const server = http.createServer((request, response) => {
       'Access-Control-Allow-Origin': origin || config.allowedOrigins[0],
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Private-Network': 'true',
       'Access-Control-Max-Age': '600',
-      'Vary': 'Origin'
+      'Vary': 'Origin, Access-Control-Request-Private-Network'
     });
     return response.end();
   }
