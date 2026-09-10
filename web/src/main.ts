@@ -46,9 +46,9 @@ const elements = {
 
 const map: LeafletMap = L.map('map', { zoomControl: false, attributionControl: true }).setView(lulaCityHall, receiverViewZoom);
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  subdomains: 'abcd', maxZoom: 20,
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
 const trackLayer = L.layerGroup().addTo(map);
