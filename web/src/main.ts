@@ -65,6 +65,8 @@ let historyTracks: HistoryTrack[] = [];
 let selectedIcao = '';
 let selectedHistoryTrackId = '';
 let eventSource: EventSource | null = null;
+let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+let connectionGeneration = 0;
 let apiBase = localStorage.getItem(endpointKey)?.trim() || defaultApiBase;
 let centeredOnReceiver = false;
 let selectedHistoryHours = 0;
@@ -314,6 +316,9 @@ function setConnection(online: boolean, error: string | null = null) {
 }
 
 function connect() {
+  const generation = ++connectionGeneration;
+  if (fallbackTimer !== null) clearInterval(fallbackTimer);
+  fallbackTimer = null;
   eventSource?.close();
   if (!apiBase) {
     setConnection(false);
@@ -321,9 +326,38 @@ function connect() {
   }
   eventSource = new EventSource(`${apiBase}/api/v1/stream`);
   eventSource.addEventListener('aircraft', (event) => {
-    try { applyPayload(JSON.parse((event as MessageEvent).data) as LivePayload); } catch { setConnection(false, 'invalid receiver data'); }
+    if (generation !== connectionGeneration) return;
+    try {
+      applyPayload(JSON.parse((event as MessageEvent).data) as LivePayload);
+      if (fallbackTimer !== null) clearInterval(fallbackTimer);
+      fallbackTimer = null;
+    } catch { setConnection(false, 'invalid receiver data'); }
   });
-  eventSource.onerror = () => setConnection(false, 'receiver feed unavailable');
+  // Some embedded browsers and proxies cannot keep an event stream open.
+  // Use bounded, non-overlapping reads until streaming resumes.
+  let polling = false;
+  const poll = async () => {
+    if (polling || generation !== connectionGeneration) return;
+    polling = true;
+    try {
+      const signal = AbortSignal.timeout(10000);
+      const [statusResponse, aircraftResponse] = await Promise.all([
+        fetch(`${apiBase}/api/v1/status`, { signal, cache: 'no-store' }),
+        fetch(`${apiBase}/api/v1/aircraft`, { signal, cache: 'no-store' })
+      ]);
+      if (!statusResponse.ok || !aircraftResponse.ok) throw new Error('receiver feed unavailable');
+      const [status, snapshot] = await Promise.all([statusResponse.json(), aircraftResponse.json()]);
+      if (generation === connectionGeneration && fallbackTimer !== null) applyPayload({ status, aircraft: snapshot.aircraft } as LivePayload);
+    } catch {
+      if (generation === connectionGeneration && fallbackTimer !== null) setConnection(false, 'receiver feed unavailable');
+    } finally { polling = false; }
+  };
+  eventSource.onerror = () => {
+    if (generation !== connectionGeneration || fallbackTimer !== null) return;
+    setConnection(false, 'receiver reconnecting');
+    fallbackTimer = setInterval(() => void poll(), 5000);
+    void poll();
+  };
 }
 
 async function showHistory(hours: number) {
