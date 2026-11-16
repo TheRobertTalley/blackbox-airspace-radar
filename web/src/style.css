@@ -4,6 +4,8 @@
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 body { background: #071015; }
+.nearby-link { color: var(--mint); text-decoration: none; padding: 6px; font-size: 10px; }
+.nearby-link:hover { text-decoration: underline; }
 button, input { font: inherit; }
 button { color: inherit; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
@@ -108,4 +110,73 @@ button { color: inherit; }
   .leaflet-bottom.leaflet-left { bottom: 290px; }
   .leaflet-bottom.leaflet-right { top: 92px; bottom: auto; }
   .leaflet-bottom.leaflet-right .leaflet-control { margin-top: 10px; margin-bottom: 0; }
+}
+
+/* Live interest box shares the traffic rail so it never covers another panel. */
+.interest-panel { margin: 12px; padding: 12px; border: 1px solid rgba(242,199,110,.35); background: rgba(242,199,110,.035); flex-shrink: 0; }
+.interest-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.interest-heading h2 { font-size: 15px; margin: 0; }
+#interest-count { color: #f2c76e; font: 600 15px 'IBM Plex Mono', monospace; }
+.interest-subtitle { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 6px 0 10px; }
+.interest-list { max-height: min(24vh, 220px); overflow-y: auto; scrollbar-width: thin; }
+.interest-empty { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 10px 0; }
+.interest-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; width: 100%; padding: 10px 6px; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.interest-row:hover, .interest-row.selected { background: rgba(114,241,184,.08); }
+.interest-row.selected { box-shadow: inset 2px 0 var(--mint); }
+.interest-ident strong, .interest-ident small, .interest-speed small { display: block; }
+.interest-ident strong { font-size: 13px; overflow-wrap: anywhere; }
+.interest-ident small { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.interest-speed { font: 500 16px 'IBM Plex Mono', monospace; color: #f2c76e; text-align: right; }
+.interest-speed small { font-size: 9px; margin-top: 2px; }
+.interest-reasons { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+.interest-tag { padding: 3px 6px; border-radius: 3px; color: #e4d0a7; background: rgba(242,199,110,.09); font-size: 10px; }
+.interest-tag.space { color: #dfb6ff; background: rgba(205,157,245,.1); }
+.interest-tag.speed { color: #8cdae4; background: rgba(87,199,212,.08); }
+.interest-coverage { margin-top: 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.interest-coverage summary { cursor: pointer; padding: 4px 0; }
+.interest-coverage p { margin: 8px 0 0; }
+.traffic-panel { overflow-y: auto; }
+.aircraft-list { min-height: 100px; }
+.aircraft-row { grid-template-columns: 1.45fr .8fr .9fr .5fr; }
+.aircraft-list-head { grid-template-columns: 1.45fr .8fr .9fr .5fr; }
+.aircraft-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.leaflet-tooltip.aircraft-speed-label { background: rgba(7,18,23,.92); color: #dff3f0; border: 1px solid #33514f; box-shadow: none; font: 11px 'IBM Plex Mono', monospace; }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+@media (max-width: 680px) {
+  html, body, #app { height: auto; min-height: 100%; overflow: auto; }
+  .workspace { height: auto; }
+  #map { height: 48vh; min-height: 320px; }
+  .traffic-panel { position: relative; top: auto; left: auto; right: auto; bottom: auto; margin: 10px; height: auto; width: auto; }
+  .aircraft-list { max-height: 300px; }
+  .interest-list { max-height: 220px; }
+  .timeline { position: relative; left: auto; right: auto; bottom: auto; margin: 10px; }
+  .leaflet-bottom.leaflet-left { bottom: 15px; }
+  .leaflet-bottom.leaflet-right { top: auto; bottom: 0; }
+}
+
+/* Aircraft details and independent copy controls. */
+.traffic-panel { width: min(420px, calc(100vw - 40px)); }
+.timeline { right: 460px; grid-template-columns: 90px 1fr; gap: 12px; }
+.timeline-status { grid-column: 1 / -1; }
+.aircraft-entry { display: grid; grid-template-columns: minmax(0, 1fr) 34px; align-items: stretch; }
+.aircraft-entry .aircraft-row { padding-right: 4px; grid-template-columns: minmax(0, 1.4fr) .8fr 1.15fr .45fr; }
+.aircraft-list-head { margin-right: 34px; padding-right: 4px; grid-template-columns: minmax(0, 1.4fr) .8fr 1.15fr .45fr; font-size: 8px; }
+.aircraft-entry .interest-row { padding-right: 4px; }
+.copy-identifier { display: grid; place-items: center; min-height: 44px; width: 34px; padding: 7px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.copy-identifier:hover, .copy-identifier:focus-visible { color: var(--mint); background: rgba(114,241,184,.1); }
+.copy-identifier svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.aircraft-row .mach-value, .interest-speed .mach-value { font: 500 10px/1.4 'IBM Plex Mono', monospace; color: #b7cdcb; margin-top: 5px; white-space: nowrap; }
+.aircraft-row small { font-size: 8px; line-height: 1.4; }
+.receiver-health-detail { margin: 0 14px 10px; padding: 9px; color: #f2c76e; font-size: 12px; border: 1px solid #69552f; }
+.receiver-health-detail:empty, .copy-status:empty { display: none; }
+.copy-status { position: fixed; z-index: 2000; bottom: 18px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); border: 1px solid var(--mint); border-radius: 5px; background: #10261f; color: #e7fff3; padding: 12px 18px; font-size: 13px; box-shadow: 0 5px 20px #0008; }
+@media (min-width: 681px) and (max-width: 900px) {
+  .traffic-panel { width: 350px; }
+  .timeline { right: 390px; }
+}
+@media (max-width: 680px) {
+  .traffic-panel { width: auto; }
+  .timeline { right: auto; }
+  .aircraft-entry .aircraft-row { padding-left: 10px; }
+  .aircraft-row span { font-size: 10px; }
 }

@@ -5,7 +5,7 @@ import type { Aircraft, LivePayload, ReceiverStatus } from './types';
 
 const endpointKey = 'blackbox-airspace-api';
 const receiverApiBase = 'https://blackbox.tailade622.ts.net';
-const defaultApiBase = location.hostname === 'blackbox.tailade622.ts.net' ? location.origin : receiverApiBase;
+const defaultApiBase = ['blackbox.tailade622.ts.net', '127.0.0.1', 'localhost'].includes(location.hostname) ? location.origin : receiverApiBase;
 const lulaCityHall: L.LatLngExpression = [34.389096, -83.664491];
 const receiverViewZoom = 10;
 // Initial 275-position sample: 95% within 9.92 NM; farthest observed fix 10.85 NM.
@@ -34,6 +34,8 @@ const elements = {
   historyCount: document.querySelector<HTMLElement>('#history-count')!,
   trafficMode: document.querySelector<HTMLElement>('#traffic-mode')!,
   list: document.querySelector<HTMLElement>('#aircraft-list')!,
+  interestList: document.querySelector<HTMLElement>('#interest-list')!,
+  interestCount: document.querySelector<HTMLElement>('#interest-count')!,
   filter: document.querySelector<HTMLInputElement>('#aircraft-filter')!,
   lastUpdate: document.querySelector<HTMLElement>('#last-update')!,
   windowLabel: document.querySelector<HTMLElement>('#window-label')!,
@@ -48,6 +50,7 @@ const map: LeafletMap = L.map('map', { zoomControl: false, attributionControl: t
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
+  referrerPolicy: 'strict-origin-when-cross-origin',
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
@@ -67,6 +70,52 @@ let centeredOnReceiver = false;
 let selectedHistoryHours = 0;
 let selectedHistoryPoints = 0;
 let storedHistoryRecords = 0;
+let receiverOnline = false;
+
+function speedMph(item: Aircraft) {
+  return item.groundSpeedMph ?? (item.groundSpeedKt === null ? null : item.groundSpeedKt * 1852 / 1609.344);
+}
+
+function formatSpeed(item: Aircraft) {
+  const speed = speedMph(item);
+  return speed === null ? '—' : speed.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function machDisplay(item: Aircraft) {
+  if (item.mach == null || !Number.isFinite(item.mach)) return '<small class="mach-value" title="Mach unavailable: no usable speed and temperature or altitude">Mach —</small>';
+  const estimated = item.machSource !== 'reported';
+  const detail = item.machSource === 'ground-estimate' ? 'Estimate from ground speed and temperature/standard atmosphere; wind is not accounted for. Not measured airspeed Mach.'
+    : item.machSource === 'tas-standard' ? 'Estimated from true airspeed and standard-atmosphere temperature at altitude.'
+    : item.machSource === 'tas-temperature' ? 'Calculated from true airspeed and outside air temperature.' : 'Mach reported by the aircraft.';
+  return `<small class="mach-value" title="${detail}">${estimated ? 'Est Mach' : 'Mach'} ${item.mach.toFixed(2)}</small>`;
+}
+
+function copyButton(item: { registration?: string | null; registrationSource?: string | null; callsign: string; icao: string }) {
+  const value = item.registration || item.callsign || item.icao;
+  const kind = item.registration ? 'tail number' : item.callsign ? 'callsign' : 'ICAO address';
+  const detail = item.registrationSource === 'icao-derived' ? ' · derived from ICAO address' : item.registration ? '' : ' · tail number unavailable';
+  return `<button type="button" class="copy-identifier" data-copy="${escapeHtml(value)}" data-copy-kind="${kind}" aria-label="Copy ${kind} ${escapeHtml(value)}" title="Copy ${kind}: ${escapeHtml(value + detail)}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg></button>`;
+}
+
+function identifierDetail(item: Aircraft) {
+  if (item.registration) {
+    const label = item.registration === item.callsign ? 'Tail number' : escapeHtml(item.registration);
+    return `${label}${item.registrationSource === 'icao-derived' ? ' · derived' : ''}`;
+  }
+  return item.callsign ? `${escapeHtml(item.icao)} · tail unknown` : 'Tail number unknown';
+}
+
+function renderInterest() {
+  const items = receiverOnline ? currentAircraft.filter((item) => item.seenSeconds <= 60 && item.interestReasons?.length)
+    .sort((a, b) => Number(b.interestReasons!.some((r) => r.kind !== 'speed')) - Number(a.interestReasons!.some((r) => r.kind !== 'speed')) || (speedMph(b) ?? -1) - (speedMph(a) ?? -1)) : [];
+  elements.interestCount.textContent = String(items.length);
+  elements.interestList.innerHTML = items.length ? items.map((item) => `
+    <div class="aircraft-entry"><button type="button" class="interest-row${selectedIcao === item.icao ? ' selected' : ''}" data-icao="${escapeHtml(item.icao)}">
+      <span class="interest-ident"><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${identifierDetail(item)}</small><small>${formatNumber(item.altitudeFt, ' ft')}${item.latitude === null || item.longitude === null ? ' · No position' : ''}</small></span>
+      <span class="interest-speed">${formatSpeed(item)}<small>MPH</small>${machDisplay(item)}</span>
+      <span class="interest-reasons">${item.interestReasons!.map((reason) => `<span class="interest-tag ${reason.kind}" title="${escapeHtml(reason.detail)}">${escapeHtml(reason.label)}</span>`).join('')}</span>
+    </button>${copyButton(item)}</div>`).join('') : `<p class="interest-empty">${receiverOnline ? 'No matching aircraft in the live feed.' : 'Waiting for a healthy live feed.'}</p>`;
+}
 
 function aircraftIcon(item: Aircraft, selected = false) {
   const rotation = item.trackDeg ?? 0;
@@ -120,24 +169,29 @@ function renderAircraft(items: Aircraft[]) {
   }
   for (const item of positioned) {
     const position: L.LatLngExpression = [item.latitude!, item.longitude!];
+    const tooltip = `${escapeHtml(item.callsign || item.icao)} · ${formatSpeed(item)} mph · ${formatNumber(item.altitudeFt, ' ft')}`;
     const existing = markers.get(item.icao);
     if (existing) {
       existing.setLatLng(position).setIcon(aircraftIcon(item, selectedIcao === item.icao));
+      existing.setTooltipContent(tooltip);
     } else {
       const marker = L.marker(position, { icon: aircraftIcon(item) })
+        .bindTooltip(tooltip, { direction: 'top', className: 'aircraft-speed-label', offset: [0, -12] })
         .on('click', () => selectLiveAircraft(item.icao))
         .addTo(aircraftLayer);
       markers.set(item.icao, marker);
     }
+    if (selectedIcao === item.icao) markers.get(item.icao)?.openTooltip();
   }
   renderHistoricalAircraft();
   renderList();
+  renderInterest();
 }
 
 function renderList() {
   const query = elements.filter.value.trim().toUpperCase();
   const liveItems = currentAircraft
-    .filter((item) => !query || item.icao.includes(query) || item.callsign.toUpperCase().includes(query))
+    .filter((item) => !query || item.icao.includes(query) || item.callsign.toUpperCase().includes(query) || item.registration?.includes(query))
     .sort((left, right) => left.seenSeconds - right.seenSeconds || (right.altitudeFt ?? 0) - (left.altitudeFt ?? 0));
   const liveIds = new Set(currentAircraft.map((item) => item.icao));
   const historyItems = historyTracks
@@ -150,20 +204,20 @@ function renderList() {
     return;
   }
   const liveRows = liveItems.map((item) => `
-    <button class="aircraft-row${selectedIcao === item.icao ? ' selected' : ''}" data-icao="${item.icao}" type="button">
-      <span><strong>${escapeHtml(item.callsign || item.icao)}</strong><small>${item.callsign ? item.icao : 'ICAO ADDRESS'}</small></span>
+    <div class="aircraft-entry"><button class="aircraft-row${selectedIcao === item.icao ? ' selected' : ''}" data-icao="${escapeHtml(item.icao)}" type="button">
+      <span><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${identifierDetail(item)}</small></span>
       <span>${formatNumber(item.altitudeFt)}<small>FT</small></span>
-      <span>${formatNumber(item.groundSpeedKt)}<small>KT</small></span>
+      <span title="Ground speed: ${formatNumber(item.groundSpeedKt, ' kt')}">${formatSpeed(item)}<small>MPH</small>${machDisplay(item)}</span>
       <span>${Math.round(item.seenSeconds)}<small>SEC</small></span>
-    </button>`).join('');
+    </button>${copyButton(item)}</div>`).join('');
   const historyRows = historyItems.map((item) => {
     const age = formatHistoryAge(item.lastObservedAt);
-    return `<button class="aircraft-row history${selectedHistoryTrackId === item.trackId ? ' selected' : ''}" data-history-id="${escapeHtml(item.trackId)}" type="button">
+    return `<div class="aircraft-entry"><button class="aircraft-row history${selectedHistoryTrackId === item.trackId ? ' selected' : ''}" data-history-id="${escapeHtml(item.trackId)}" type="button">
       <span><strong>${escapeHtml(item.callsign || item.icao)}</strong><small>${item.icao} · HISTORY</small></span>
       <span>${formatNumber(item.altitudeFt)}<small>FT</small></span>
       <span>${item.pointCount}<small>PTS</small></span>
       <span>${age.value}<small>${age.unit}</small></span>
-    </button>`;
+    </button>${copyButton(item)}</div>`;
   }).join('');
   elements.list.innerHTML = liveRows + historyRows;
   elements.list.querySelectorAll<HTMLButtonElement>('[data-icao]').forEach((button) => {
@@ -240,6 +294,7 @@ function applyPayload(payload: LivePayload) {
   elements.aircraftCount.textContent = String(payload.status.aircraftCount);
   elements.positionedCount.textContent = String(payload.status.positionedCount);
   elements.dataAge.textContent = payload.status.dataAgeSeconds === null ? '--' : payload.status.dataAgeSeconds.toFixed(1);
+  elements.dataAge.title = `Feed freshness. Decoder clock age: ${payload.status.decoderAgeSeconds?.toFixed(1) ?? 'unknown'} seconds`;
   elements.receiverSource.textContent = 'BLADERF X40 / 1090 MHZ RX';
   elements.receiverSource.title = payload.status.source;
   storedHistoryRecords = payload.status.historyRecords;
@@ -249,9 +304,13 @@ function applyPayload(payload: LivePayload) {
 }
 
 function setConnection(online: boolean, error: string | null = null) {
+  receiverOnline = online;
+  renderInterest();
   elements.connectionButton.classList.toggle('is-online', online);
   elements.connectionButton.classList.toggle('is-offline', !online);
   elements.connectionLabel.textContent = online ? 'RECEIVER ONLINE' : error ? 'RECEIVER DEGRADED' : 'RECEIVER OFFLINE';
+  elements.connectionButton.title = online ? 'Feed is updating. Click for receiver settings.' : `${error || 'No connection'}. Click for receiver settings.`;
+  document.querySelector<HTMLElement>('#receiver-health-detail')!.textContent = online ? '' : error || 'Receiver offline';
 }
 
 function connect() {
@@ -363,6 +422,25 @@ elements.clearApi.addEventListener('click', () => {
   void showHistory(selectedHistoryHours);
 });
 elements.filter.addEventListener('input', renderList);
+let copyNoticeTimer: ReturnType<typeof setTimeout>;
+document.querySelector('.traffic-panel')!.addEventListener('click', async (event) => {
+  const button = (event.target as Element).closest<HTMLButtonElement>('[data-copy]');
+  if (!button) return;
+  const value = button.dataset.copy!;
+  const notice = document.querySelector<HTMLElement>('#copy-status')!;
+  clearTimeout(copyNoticeTimer);
+  try {
+    await navigator.clipboard.writeText(value);
+    notice.textContent = `Copied ${button.dataset.copyKind}: ${value}`;
+  } catch {
+    notice.textContent = `Copy unavailable. ${button.dataset.copyKind}: ${value}`;
+  }
+  copyNoticeTimer = setTimeout(() => { notice.textContent = ''; }, 5000);
+});
+elements.interestList.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-icao]');
+  if (button) selectLiveAircraft(button.dataset.icao || '');
+});
 document.querySelectorAll<HTMLButtonElement>('.window-button').forEach((button) => button.addEventListener('click', () => void showHistory(Number(button.dataset.hours))));
 
 setInterval(() => { elements.clock.textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 250);
