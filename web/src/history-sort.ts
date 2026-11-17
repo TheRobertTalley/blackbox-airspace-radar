@@ -14,6 +14,6 @@ export function compareHistory(left: SortableTrack, right: SortableTrack, key: H
   const missing = (v: unknown) => v == null || (typeof v === 'number' && !Number.isFinite(v));
   if (missing(a) !== missing(b)) return missing(a) ? 1 : -1;
   const order = missing(a) ? 0 : typeof a === 'string' && typeof b === 'string'
-    ? a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }) : Number(a) - Number(b);
+    ? a.localeCompare(b, undefined, { numeric: key !== 'icao', sensitivity: 'base' }) : Number(a) - Number(b);
   return (ascending ? order : -order) || left.trackId.localeCompare(right.trackId);
 }

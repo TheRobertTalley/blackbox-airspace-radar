@@ -46,4 +46,5 @@ test('history sorting is numeric, chronological, stable, and puts unavailable va
   assert.equal(ids('identifier', true)[0], 'slow');
   assert.equal(ids('lastObservedAt', false)[0], 'fast');
   assert.deepEqual(ids('mach', true), ids('mach', false));
+  assert.ok(compareHistory({ ...base, trackId: 'a', icao: '0D09EC' }, { ...base, trackId: 'b', icao: '0D0BA3' }, 'icao', true) < 0);
 });
