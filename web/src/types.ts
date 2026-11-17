@@ -10,7 +10,7 @@ export interface Aircraft {
   registrationSource?: 'receiver' | 'icao-derived' | null;
   mach?: number | null;
   machSource?: 'reported' | 'tas-temperature' | 'tas-standard' | 'ground-estimate' | null;
-  interestReasons?: { kind: 'military' | 'space' | 'speed'; label: string; detail: string }[];
+  interestReasons?: { kind: 'military' | 'space' | 'speed' | 'unmarked' | 'altitude' | 'emergency' | 'other'; label: string; detail: string }[];
   trackDeg: number | null;
   verticalRateFpm: number | null;
   squawk: string;
