@@ -51,6 +51,26 @@ let sensors = readSensors(sensorPaths);
 const rfSamples = [];
 const sensorAlertedAt = new Map();
 let decoderAgeSeconds = null;
+const aiSummaryPath = path.join(path.dirname(config.databasePath), 'ai-summary.json');
+let localAi = { status: 'not-running', generatedAt: null, model: null, summary: null, advisoryOnly: true };
+function refreshLocalAi() {
+  try {
+    const stat = fs.statSync(aiSummaryPath);
+    if (stat.size > 16_384) throw new Error('AI output oversized');
+    const raw = JSON.parse(fs.readFileSync(aiSummaryPath, 'utf8'));
+    const at = Date.parse(raw.generatedAt);
+    if (!Number.isFinite(at) || at > Date.now() + 10_000 || typeof raw.summary !== 'string') throw new Error('Invalid AI output');
+    const ageMs = Date.now() - at;
+    localAi = ageMs <= 30 * 60_000 ? {
+      status: 'ready', generatedAt: new Date(at).toISOString(),
+      model: typeof raw.model === 'string' ? raw.model.slice(0, 100) : 'local model',
+      summary: raw.summary.slice(0, 1200), advisoryOnly: true
+    } : { status: 'stale', generatedAt: new Date(at).toISOString(), model: null, summary: null, advisoryOnly: true };
+  } catch {
+    localAi = { status: 'not-running', generatedAt: null, model: null, summary: null, advisoryOnly: true };
+  }
+}
+refreshLocalAi();
 function reportSensorEvents(now = Date.now()) {
   try {
     const next = readSensors(sensorPaths, now);
@@ -136,7 +156,7 @@ function statusPayload() {
 }
 
 function publish() {
-  const payload = `event: aircraft\ndata: ${JSON.stringify({ status: statusPayload(), aircraft, analysis: airspaceAnalysis, alerts: alerts.slice(-20), sensors })}\n\n`;
+  const payload = `event: aircraft\ndata: ${JSON.stringify({ status: statusPayload(), aircraft, analysis: airspaceAnalysis, alerts: alerts.slice(-20), sensors, localAi })}\n\n`;
   for (const response of streams) response.write(payload);
 }
 
@@ -258,6 +278,7 @@ const server = http.createServer((request, response) => {
 
   if (url.pathname === '/health') return responseJson(response, statusPayload().ok ? 200 : 503, statusPayload(), origin);
   if (url.pathname === '/api/v1/status') return responseJson(response, 200, statusPayload(), origin);
+  if (url.pathname === '/api/v1/local-ai') return responseJson(response, 200, { localAi }, origin);
   if (url.pathname === '/api/v1/sensors') return responseJson(response, 200, { sensors, lastUpdatedAt: new Date().toISOString() }, origin);
   if (url.pathname === '/api/v1/analysis') return responseJson(response, 200, { analysis: airspaceAnalysis, alerts: alerts.slice(-50) }, origin);
   if (url.pathname === '/api/v1/what-was-that') {
@@ -298,6 +319,7 @@ setInterval(enforceRetention, 3600000).unref();
 setTimeout(analyzeAndAlert, 3000).unref();
 setInterval(analyzeAndAlert, 30000).unref();
 setInterval(reportSensorEvents, 10000).unref();
+setInterval(refreshLocalAi, 15000).unref();
 server.listen(config.port, config.host, () => {
   console.log(`BlackBox Airspace API listening on http://${config.host}:${config.port} (RX only)`);
 });
