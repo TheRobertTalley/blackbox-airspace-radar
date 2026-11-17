@@ -27,4 +27,5 @@ jobs:
       - run: npm run test:service
       - run: npm run build
       - run: node --check alexa/index.cjs
+      - run: node --check scripts/local-ai-summary.mjs
       - run: python3 -m py_compile scripts/laurens-lamp.py
