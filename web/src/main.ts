@@ -283,7 +283,7 @@ function drawLiveTail() {
 }
 function renderHistoricalAircraft() {
   const liveIds = new Set(currentAircraft.map((item) => item.icao));
-  const visible = historyTracks.filter((item) => !(liveIds.has(item.icao) && Date.now() - Date.parse(item.lastObservedAt) < 120000));
+  const visible = (interestOnly ? [] : historyTracks).filter((item) => !(liveIds.has(item.icao) && Date.now() - Date.parse(item.lastObservedAt) < 120000));
   const visibleIds = new Set(visible.map((item) => item.trackId));
   for (const [trackId, marker] of historyMarkers) {
     if (!visibleIds.has(trackId)) {
@@ -517,6 +517,8 @@ document.querySelector('.traffic-panel')!.addEventListener('click', async (event
 });
 document.querySelector<HTMLButtonElement>('#interest-filter')!.addEventListener('click', () => {
   interestOnly = !interestOnly;
+  if (interestOnly) map.removeLayer(trackLayer);
+  else trackLayer.addTo(map);
   renderAircraft(currentAircraft);
 });
 elements.interestList.addEventListener('click', (event) => {
