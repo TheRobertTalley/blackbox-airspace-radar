@@ -7,7 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const RADAR = 'http://127.0.0.1:8788';
-const OLLAMA = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+const OLLAMA = process.env.BLKBOX_OLLAMA_URL || 'http://127.0.0.1:11434';
 const DATA_DIR = process.env.BLKBOX_DATA_DIR ||
   path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), '.local', 'share'), 'BlackBoxAirspaceRadar');
 const OUTPUT = path.join(DATA_DIR, 'ai-summary.json');
