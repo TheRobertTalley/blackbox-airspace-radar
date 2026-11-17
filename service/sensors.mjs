@@ -79,7 +79,7 @@ export function readSensors(paths = {}, now = Date.now()) {
       sensors[channel] = { ...projected, kind: channel };
       if (kind === 'rf' && projected.status === 'online' && projected.data.band !== channel) sensors[channel] = { ...emptyState(kind), kind: channel, status: 'invalid' };
     } catch (error) {
-      sensors[channel] = { ...emptyState(kind), kind: channel, status: error.code === 'ENOENT' ? 'offline' : 'invalid' };
+      sensors[channel] = { ...emptyState(kind), kind: channel, status: error.code === 'ENOENT' ? 'not-configured' : 'invalid' };
     }
   }
   return sensors;
