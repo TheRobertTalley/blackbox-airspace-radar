@@ -62,7 +62,7 @@ test('sensor file reader reports unavailable and preserves privacy', () => {
     fs.writeFileSync(water, JSON.stringify({ observedAt: new Date(NOW).toISOString(), meterId: 'PRIVATE', consumptionRaw: 9876 }));
     const result = readSensors({ water, weather: path.join(dir, 'missing.json') }, NOW);
     assert.equal(result.water.status, 'online');
-    assert.equal(result.weather.status, 'offline');
+    assert.equal(result.weather.status, 'not-configured');
     assert.equal(result.wifi.status, 'not-configured');
     assert.ok(!JSON.stringify(result).includes('PRIVATE'));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
