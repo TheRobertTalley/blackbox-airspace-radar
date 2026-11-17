@@ -180,3 +180,13 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--mint); ou
   .aircraft-entry .aircraft-row { padding-left: 10px; }
   .aircraft-row span { font-size: 10px; }
 }
+
+/* Interest filtering and behavior indicators. Default is ALL aircraft. */
+.interest-heading { flex-wrap: wrap; }
+.interest-filter { border: 1px solid rgba(242,199,110,.45); background: rgba(242,199,110,.06); color: #f2c76e; border-radius: 3px; font: 600 9px 'IBM Plex Mono', monospace; padding: 7px 9px; cursor: pointer; }
+.interest-filter[aria-pressed="true"] { color: #06110f; background: #f2c76e; }
+.interest-filter:hover { border-color: #f2c76e; }
+#airspace-events { white-space: normal; line-height: 1.5; overflow-wrap: anywhere; }
+.interest-tag.altitude { color: #ffc49c; background: rgba(242,144,74,.12); }
+.interest-tag.unmarked { color: #d9d8db; background: rgba(170,170,180,.12); }
+.interest-tag.emergency { color: #ff9696; background: rgba(255,90,90,.12); }

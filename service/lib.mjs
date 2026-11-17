@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { classifyInterest, KNOTS_TO_MPH } from './airspace.mjs';
 
 export function expandPath(value) {
   return value
@@ -10,15 +11,24 @@ export function expandPath(value) {
 
 export function normalizeAircraft(source, now = Date.now()) {
   if (!source || typeof source.hex !== 'string') return null;
-  const number = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
+  const number = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
   const altitudeValue = source.alt_baro === 'ground' ? 0 : number(source.alt_baro);
-  return {
+  const item = {
     icao: source.hex.trim().toUpperCase(),
     callsign: typeof source.flight === 'string' ? source.flight.trim() : '',
+    registration: typeof source.r === 'string' ? source.r.trim().toUpperCase() : null,
+    registrationSource: typeof source.r === 'string' && source.r.trim() ? 'receiver' : null,
+    aircraftType: typeof source.t === 'string' ? source.t.trim().toUpperCase() : null,
+    dbFlags: Number.isInteger(source.dbFlags) ? source.dbFlags : 0,
+    sourceBand: source.sourceBand === '978 UAT' ? '978 UAT' : '1090 ADS-B',
+    onGround: source.alt_baro === 'ground',
     latitude: number(source.lat),
     longitude: number(source.lon),
     altitudeFt: altitudeValue,
     groundSpeedKt: number(source.gs),
+    groundSpeedMph: number(source.gs) === null ? null : number(source.gs) * KNOTS_TO_MPH,
+    mach: number(source.mach),
+    machSource: number(source.mach) === null ? null : 'reported',
     trackDeg: number(source.track),
     verticalRateFpm: number(source.baro_rate ?? source.geom_rate),
     squawk: typeof source.squawk === 'string' ? source.squawk : '',
@@ -29,6 +39,7 @@ export function normalizeAircraft(source, now = Date.now()) {
     emergency: typeof source.emergency === 'string' ? source.emergency : 'none',
     observedAt: new Date(now - ((number(source.seen) ?? 0) * 1000)).toISOString()
   };
+  return { ...item, interestReasons: classifyInterest(item) };
 }
 
 export function loadConfig(configPath) {

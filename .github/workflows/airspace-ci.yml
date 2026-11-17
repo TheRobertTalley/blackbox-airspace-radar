@@ -1,0 +1,31 @@
+name: Validate airspace intelligence
+on:
+  pull_request:
+    paths:
+      - 'service/**'
+      - 'web/**'
+      - 'alexa/**'
+      - 'package.json'
+      - '.github/workflows/airspace-ci.yml'
+  push:
+    branches:
+      - feature/airspace-intelligence-alerts-20261117
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run test:service
+      - run: npm run build
+      - run: node --check alexa/index.cjs
+      - run: node --check scripts/local-ai-summary.mjs
+      - run: python3 -m py_compile scripts/laurens-lamp.py

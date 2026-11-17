@@ -1,0 +1,39 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "black box",
+      "intents": [
+        {
+          "name": "WhatWasThatIntent",
+          "samples": [
+            "what plane was that",
+            "what was that",
+            "what aircraft just flew over",
+            "what just flew over"
+          ]
+        },
+        {
+          "name": "AnythingInterestingIntent",
+          "samples": [
+            "anything interesting near",
+            "anything interesting nearby",
+            "what is interesting overhead",
+            "any unusual planes nearby"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        }
+      ]
+    }
+  }
+}

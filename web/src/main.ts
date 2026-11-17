@@ -73,6 +73,9 @@ let selectedHistoryHours = 0;
 let selectedHistoryPoints = 0;
 let storedHistoryRecords = 0;
 let receiverOnline = false;
+let interestOnly = false;
+let latestAnalysis: Record<string, { kinds: string[]; identifier: string; durationSeconds: number }> = {};
+let latestAlerts: { id: string; icao: string; identifier: string; kind: string; observedAt: string }[] = [];
 
 function speedMph(item: Aircraft) {
   return item.groundSpeedMph ?? (item.groundSpeedKt === null ? null : item.groundSpeedKt * 1852 / 1609.344);
@@ -108,6 +111,9 @@ function identifierDetail(item: Aircraft) {
 }
 
 function renderInterest() {
+  const interestFilter = document.querySelector<HTMLButtonElement>('#interest-filter')!;
+  interestFilter.setAttribute('aria-pressed', String(interestOnly));
+  interestFilter.textContent = interestOnly ? 'SHOW ALL' : 'FILTER INTEREST';
   const items = receiverOnline ? currentAircraft.filter((item) => item.seenSeconds <= 60 && item.interestReasons?.length)
     .sort((a, b) => Number(b.interestReasons!.some((r) => r.kind !== 'speed')) - Number(a.interestReasons!.some((r) => r.kind !== 'speed')) || (speedMph(b) ?? -1) - (speedMph(a) ?? -1)) : [];
   elements.interestCount.textContent = String(items.length);
@@ -161,7 +167,7 @@ function updateHistorySummary() {
 
 function renderAircraft(items: Aircraft[]) {
   currentAircraft = items;
-  const positioned = items.filter((item) => item.latitude !== null && item.longitude !== null);
+  const positioned = items.filter((item) => item.latitude !== null && item.longitude !== null && (!interestOnly || Boolean(item.interestReasons?.length) || Boolean(latestAnalysis[item.icao])));
   const activeIds = new Set(positioned.map((item) => item.icao));
   for (const [icao, marker] of markers) {
     if (!activeIds.has(icao)) {
@@ -171,7 +177,8 @@ function renderAircraft(items: Aircraft[]) {
   }
   for (const item of positioned) {
     const position: L.LatLngExpression = [item.latitude!, item.longitude!];
-    const tooltip = `${escapeHtml(item.callsign || item.icao)} · ${formatSpeed(item)} mph · ${formatNumber(item.altitudeFt, ' ft')}`;
+    const finding = latestAnalysis[item.icao];
+    const tooltip = `${escapeHtml(item.registration || item.callsign || item.icao)} · ${formatSpeed(item)} mph · ${formatNumber(item.altitudeFt, ' ft')}${finding ? ' · ' + finding.kinds.join(', ') : ''}`;
     const existing = markers.get(item.icao);
     if (existing) {
       existing.setLatLng(position).setIcon(aircraftIcon(item, selectedIcao === item.icao));
@@ -186,6 +193,7 @@ function renderAircraft(items: Aircraft[]) {
     if (selectedIcao === item.icao) markers.get(item.icao)?.openTooltip();
   }
   renderHistoricalAircraft();
+  drawLiveTail();
   renderList();
   renderInterest();
 }
@@ -193,10 +201,11 @@ function renderAircraft(items: Aircraft[]) {
 function renderList() {
   const query = elements.filter.value.trim().toUpperCase();
   const liveItems = currentAircraft
+    .filter((item) => !interestOnly || Boolean(item.interestReasons?.length) || Boolean(latestAnalysis[item.icao]))
     .filter((item) => !query || item.icao.includes(query) || item.callsign.toUpperCase().includes(query) || item.registration?.includes(query))
     .sort((left, right) => left.seenSeconds - right.seenSeconds || (right.altitudeFt ?? 0) - (left.altitudeFt ?? 0));
   const liveIds = new Set(currentAircraft.map((item) => item.icao));
-  const historyItems = historyTracks
+  const historyItems = (interestOnly ? [] : historyTracks)
     .filter((item) => !(liveIds.has(item.icao) && Date.now() - Date.parse(item.lastObservedAt) < 120000))
     .filter((item) => !query || item.icao.includes(query) || item.callsign.toUpperCase().includes(query))
     .sort((left, right) => Date.parse(right.lastObservedAt) - Date.parse(left.lastObservedAt));
@@ -246,9 +255,35 @@ function selectHistoryAircraft(trackId: string) {
   renderAircraft(currentAircraft);
 }
 
+const liveTailLayer = L.layerGroup().addTo(map);
+const tailRequested = new Set<string>();
+const tailLines = new Map<string, L.Polyline>();
+function drawLiveTail() {
+  const active = new Set(Object.keys(latestAnalysis).filter(icao => currentAircraft.some(a => a.icao === icao)));
+  for (const [icao, line] of tailLines) if (!active.has(icao)) {
+    liveTailLayer.removeLayer(line); tailLines.delete(icao); tailRequested.delete(icao);
+  }
+  for (const icao of active) {
+    if (tailRequested.has(icao) || !apiBase) continue;
+    tailRequested.add(icao);
+    const since = new Date(Date.now() - 2 * 3600000).toISOString();
+    void fetch(`${apiBase}/api/v1/tracks?since=${encodeURIComponent(since)}&icao=${encodeURIComponent(icao)}`)
+      .then(r => { if (!r.ok) throw new Error('history unavailable'); return r.json(); })
+      .then((data: GeoJSON.FeatureCollection<GeoJSON.LineString>) => {
+        const feature = data.features.at(-1);
+        const coords = feature?.geometry?.coordinates;
+        if (!coords || !coords.length || !latestAnalysis[icao]) return;
+        const line = L.polyline(coords.map(c => [c[1], c[0]] as L.LatLngTuple), { color: '#f2c76e', weight: 2.5, opacity: 0.9, dashArray: '5 3' });
+        const old = tailLines.get(icao);
+        if (old) liveTailLayer.removeLayer(old);
+        line.addTo(liveTailLayer).bindTooltip(latestAnalysis[icao].identifier + ' · ' + latestAnalysis[icao].kinds.join(', '));
+        tailLines.set(icao, line);
+      }).catch(() => {}).finally(() => { setTimeout(() => tailRequested.delete(icao), 30000); });
+  }
+}
 function renderHistoricalAircraft() {
   const liveIds = new Set(currentAircraft.map((item) => item.icao));
-  const visible = historyTracks.filter((item) => !(liveIds.has(item.icao) && Date.now() - Date.parse(item.lastObservedAt) < 120000));
+  const visible = (interestOnly ? [] : historyTracks).filter((item) => !(liveIds.has(item.icao) && Date.now() - Date.parse(item.lastObservedAt) < 120000));
   const visibleIds = new Set(visible.map((item) => item.trackId));
   for (const [trackId, marker] of historyMarkers) {
     if (!visibleIds.has(trackId)) {
@@ -290,7 +325,14 @@ function drawReceiver(status: ReceiverStatus) {
   });
 }
 
-function applyPayload(payload: LivePayload) {
+function applyPayload(payload: LivePayload & { analysis?: { flags?: typeof latestAnalysis; reception?: { averageSeconds: number | null; completedFlights: number } }; alerts?: typeof latestAlerts }) {
+  latestAnalysis = payload.analysis?.flags || latestAnalysis;
+  latestAlerts = payload.alerts || latestAlerts;
+  const reception = payload.analysis?.reception;
+  const duration = document.querySelector<HTMLElement>('#reception-average')!;
+  duration.textContent = reception?.averageSeconds != null ? `${Math.round(reception.averageSeconds / 60)} MIN / ${reception.completedFlights} FLIGHTS` : 'LEARNING';
+  const notice = document.querySelector<HTMLElement>('#airspace-events')!;
+  notice.textContent = latestAlerts.length ? latestAlerts.slice(-3).reverse().map(a => `${a.identifier}: ${a.kind}`).join(' | ') : 'NO BEHAVIOR ALERTS';
   renderAircraft(payload.aircraft);
   drawReceiver(payload.status);
   elements.aircraftCount.textContent = String(payload.status.aircraftCount);
@@ -341,13 +383,15 @@ function connect() {
     polling = true;
     try {
       const signal = AbortSignal.timeout(10000);
-      const [statusResponse, aircraftResponse] = await Promise.all([
+      const [statusResponse, aircraftResponse, analysisResponse] = await Promise.all([
         fetch(`${apiBase}/api/v1/status`, { signal, cache: 'no-store' }),
-        fetch(`${apiBase}/api/v1/aircraft`, { signal, cache: 'no-store' })
+        fetch(`${apiBase}/api/v1/aircraft`, { signal, cache: 'no-store' }),
+    fetch(`${apiBase}/api/v1/analysis`, { signal, cache: 'no-store' })
       ]);
       if (!statusResponse.ok || !aircraftResponse.ok) throw new Error('receiver feed unavailable');
       const [status, snapshot] = await Promise.all([statusResponse.json(), aircraftResponse.json()]);
-      if (generation === connectionGeneration && fallbackTimer !== null) applyPayload({ status, aircraft: snapshot.aircraft } as LivePayload);
+      const analysisPayload = analysisResponse.ok ? await analysisResponse.json() : {};
+      if (generation === connectionGeneration && fallbackTimer !== null) applyPayload({ status, aircraft: snapshot.aircraft, ...analysisPayload } as LivePayload);
     } catch {
       if (generation === connectionGeneration && fallbackTimer !== null) setConnection(false, 'receiver feed unavailable');
     } finally { polling = false; }
@@ -470,6 +514,12 @@ document.querySelector('.traffic-panel')!.addEventListener('click', async (event
     notice.textContent = `Copy unavailable. ${button.dataset.copyKind}: ${value}`;
   }
   copyNoticeTimer = setTimeout(() => { notice.textContent = ''; }, 5000);
+});
+document.querySelector<HTMLButtonElement>('#interest-filter')!.addEventListener('click', () => {
+  interestOnly = !interestOnly;
+  if (interestOnly) map.removeLayer(trackLayer);
+  else trackLayer.addTo(map);
+  renderAircraft(currentAircraft);
 });
 elements.interestList.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-icao]');
