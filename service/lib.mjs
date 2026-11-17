@@ -75,7 +75,7 @@ export function groupTracks(rows, segmentGapMs = 15 * 60 * 1000) {
         firstObservedAt: row.observed_at,
         lastObservedAt: row.observed_at,
         altitudeFt: null,
-        groundSpeedMph: null, mach: null, machSource: null,
+        groundSpeedMph: null, mach: null, machSource: null, speedObservedAt: null,
         registration: null, registrationSource: null,
         samples: []
       };
@@ -85,12 +85,18 @@ export function groupTracks(rows, segmentGapMs = 15 * 60 * 1000) {
     current.lastObservedAt = row.observed_at;
     if (typeof row.callsign === 'string' && row.callsign.trim()) current.callsign = row.callsign.trim();
     current.altitudeFt = Number.isFinite(row.altitude_ft) ? row.altitude_ft : null;
-    current.groundSpeedMph = Number.isFinite(row.ground_speed_mph) ? row.ground_speed_mph : null;
-    current.mach = Number.isFinite(row.mach) ? row.mach : null;
-    current.machSource = row.mach_source ?? null;
-    current.registration = row.registration ?? null;
-    current.registrationSource = row.registration_source ?? null;
-    current.samples.push({ observedAt: new Date(row.observed_at).toISOString(), groundSpeedMph: current.groundSpeedMph, mach: current.mach, machSource: current.machSource });
+    const sample = { observedAt: new Date(row.observed_at).toISOString(), groundSpeedMph: Number.isFinite(row.ground_speed_mph) ? row.ground_speed_mph : null, mach: Number.isFinite(row.mach) ? row.mach : null, machSource: row.mach_source ?? null };
+    if (sample.groundSpeedMph !== null) {
+      current.groundSpeedMph = sample.groundSpeedMph;
+      current.mach = sample.mach;
+      current.machSource = sample.machSource;
+      current.speedObservedAt = sample.observedAt;
+    }
+    if (row.registration) {
+      current.registration = row.registration;
+      current.registrationSource = row.registration_source ?? null;
+    }
+    current.samples.push(sample);
   }
   return {
     type: 'FeatureCollection',
@@ -108,7 +114,7 @@ export function groupTracks(rows, segmentGapMs = 15 * 60 * 1000) {
           firstObservedAt: new Date(track.firstObservedAt).toISOString(),
           lastObservedAt: new Date(track.lastObservedAt).toISOString(),
           altitudeFt: track.altitudeFt,
-          groundSpeedMph: track.groundSpeedMph,
+          groundSpeedMph: track.groundSpeedMph, speedObservedAt: track.speedObservedAt,
           mach: track.mach, machSource: track.machSource,
           registration: track.registration, registrationSource: track.registrationSource,
           samples: track.samples

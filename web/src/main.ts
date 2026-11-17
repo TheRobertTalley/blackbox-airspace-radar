@@ -20,6 +20,7 @@ interface HistoryTrack {
   longitude: number;
   altitudeFt: number | null;
   groundSpeedMph: number | null;
+  speedObservedAt?: string | null;
   mach?: Aircraft['mach'];
   machSource?: Aircraft['machSource'];
   registration?: Aircraft['registration'];
@@ -251,7 +252,7 @@ function renderList() {
     return `<div class="aircraft-entry"><button class="aircraft-row history${selectedHistoryTrackId === item.trackId ? ' selected' : ''}" data-history-id="${escapeHtml(item.trackId)}" type="button">
       <span><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${item.icao} · ${item.pointCount} PTS</small></span>
       <span>${formatNumber(item.altitudeFt)}<small>FT</small></span>
-      <span title="Ground speed at the last saved point. Older records may have no speed.">${formatSpeed(item)}<small>MPH</small>${machDisplay(item)}</span>
+      <span title="${item.speedObservedAt ? `Speed recorded: ${escapeHtml(new Date(item.speedObservedAt).toLocaleString())}` : 'Speed was not recorded for this track'}">${formatSpeed(item)}<small>MPH</small>${machDisplay(item)}</span>
       <span title="Last seen: ${escapeHtml(new Date(item.lastObservedAt).toLocaleString())}">${age.value}<small>${age.unit}</small></span>
     </button>${copyButton(item)}</div>`;
   }).join('');
@@ -503,7 +504,7 @@ async function showHistory(hours: number) {
     const geojson = await response.json() as GeoJSON.FeatureCollection<GeoJSON.LineString, {
       trackId?: string; icao?: string; callsign?: string; pointCount?: number;
       firstObservedAt?: string; lastObservedAt?: string; altitudeFt?: number | null;
-      groundSpeedMph?: number | null; mach?: Aircraft['mach']; machSource?: Aircraft['machSource'];
+      groundSpeedMph?: number | null; speedObservedAt?: string | null; mach?: Aircraft['mach']; machSource?: Aircraft['machSource'];
       registration?: Aircraft['registration']; registrationSource?: Aircraft['registrationSource'];
     }>;
     if (requestId !== historyRequestId) return;
@@ -526,6 +527,7 @@ async function showHistory(hours: number) {
         callsign: (feature.properties?.callsign || '').trim(),
         latitude, longitude,
         groundSpeedMph: typeof feature.properties?.groundSpeedMph === 'number' && Number.isFinite(feature.properties.groundSpeedMph) ? feature.properties.groundSpeedMph : null,
+        speedObservedAt: feature.properties?.speedObservedAt,
         mach: feature.properties?.mach, machSource: feature.properties?.machSource,
         registration: feature.properties?.registration, registrationSource: feature.properties?.registrationSource,
         altitudeFt: typeof propertyAltitude === 'number' && Number.isFinite(propertyAltitude)

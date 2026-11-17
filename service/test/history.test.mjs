@@ -25,6 +25,10 @@ test('migrates legacy history without inventing speeds and persists normalized s
     assert.equal(track.properties.samples[0].groundSpeedMph, null);
     assert.equal(track.properties.samples[1].groundSpeedMph, aircraft.groundSpeedMph);
     assert.equal(track.properties.machSource, 'reported');
+    const missingLast = groupTracks([...rows, { ...rows[1], observed_at: 25000, ground_speed_mph: null, mach: null }]).features[0].properties;
+    assert.equal(missingLast.groundSpeedMph, aircraft.groundSpeedMph);
+    assert.equal(missingLast.speedObservedAt, new Date(20000).toISOString());
+    assert.equal(missingLast.samples.at(-1).groundSpeedMph, null);
     const old = groupTracks([rows[0]]).features[0].properties;
     assert.equal(old.groundSpeedMph, null);
     assert.equal(old.altitudeFt, null);
