@@ -108,10 +108,26 @@ function pollReadsb() {
   try {
     const raw = JSON.parse(fs.readFileSync(config.readsbJsonPath, 'utf8'));
     const now = Date.now();
-    aircraft = (Array.isArray(raw.aircraft) ? raw.aircraft : [])
-      .map((item) => normalizeAircraft(item, now))
-      .filter(Boolean)
-      .filter((item) => item.seenSeconds <= 60);
+    // Optional second SDR decoding 978 MHz UAT into readsb-compatible JSON.
+    // No 978 reception is claimed unless the independently configured file exists and is fresh.
+    let uat = [];
+    if (config.uatJsonPath) {
+      try {
+        const uatRaw = JSON.parse(fs.readFileSync(config.uatJsonPath, 'utf8'));
+        const age = Number.isFinite(uatRaw.now) ? Math.abs(now / 1000 - uatRaw.now) : Infinity;
+        if (age < 15 && Array.isArray(uatRaw.aircraft)) {
+          uat = uatRaw.aircraft.map(item => ({ ...item, sourceBand: '978 UAT' }));
+        }
+      } catch { /* Missing or stale UAT decoder is optional, never fabricate aircraft. */ }
+    }
+    const byIcao = new Map();
+    for (const candidate of [...(Array.isArray(raw.aircraft) ? raw.aircraft : []), ...uat]) {
+      const item = normalizeAircraft(candidate, now);
+      if (!item || item.seenSeconds > 60) continue;
+      const previous = byIcao.get(item.icao);
+      if (!previous || item.seenSeconds < previous.seenSeconds) byIcao.set(item.icao, item);
+    }
+    aircraft = [...byIcao.values()];
     sourceGeneratedAt = Number.isFinite(raw.now) ? new Date(raw.now * 1000).toISOString() : new Date(now).toISOString();
     sourceMessageCount = Number.isFinite(raw.messages) ? raw.messages : 0;
     lastReadAt = now;
