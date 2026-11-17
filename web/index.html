@@ -36,6 +36,8 @@
           </div>
           <div class="receiver-line"><span>LINK</span><strong id="receiver-source">WAITING FOR BLACKBOX</strong></div>
           <div class="receiver-line"><span>HISTORY</span><strong id="history-count">0 POINTS</strong></div>
+          <div class="receiver-line"><span>AVG RX</span><strong id="reception-average">LEARNING</strong></div>
+          <div class="receiver-line"><span>EVENTS</span><strong id="airspace-events" role="status">NO BEHAVIOR ALERTS</strong></div>
           <div class="rx-lock"><span aria-hidden="true">◉</span> TRANSMIT PATH DISABLED</div>
         </aside>
 
@@ -45,10 +47,10 @@
             <label class="search"><span class="sr-only">Filter aircraft</span><input id="aircraft-filter" type="search" placeholder="CALLSIGN / ICAO" autocomplete="off" /></label>
           </div>
           <section class="interest-panel" aria-labelledby="interest-heading">
-            <div class="interest-heading"><h2 id="interest-heading">Planes of interest</h2><span id="interest-count">0</span></div>
-            <p class="interest-subtitle">Military · Rockets / space · Over 360 mph</p>
+            <div class="interest-heading"><h2 id="interest-heading">Planes of interest</h2><span id="interest-count">0</span><button id="interest-filter" class="interest-filter" type="button" aria-pressed="false">FILTER INTEREST</button></div>
+            <p class="interest-subtitle">Military · Unmarked · Space · >550 / <25 mph · >42K / <1K ft</p>
             <div id="interest-list" class="interest-list"><p class="interest-empty">Waiting for live aircraft.</p></div>
-            <details class="interest-coverage"><summary>Detection coverage</summary><p>Military labels use receiver flags or a likely US military address. Rockets appear only if received with the space / transatmospheric category; this is not a launch tracker. Speeds are ground speed. This box shows live traffic, independent of search and history.</p></details>
+            <details class="interest-coverage"><summary>Detection coverage</summary><p>Military labels use receiver flags or a likely US military address. Rockets appear only if received with the space / transatmospheric category; this is not a launch tracker. Speeds are ground speed. Use FILTER INTEREST to show only matching live aircraft; SHOW ALL restores the default view. Low altitude is barometric MSL, not terrain clearance.</p></details>
           </section>
           <p id="receiver-health-detail" class="receiver-health-detail" role="status"></p>
           <div class="aircraft-list-head"><span>IDENT</span><span>ALT</span><span>MPH / MACH</span><span>AGE</span></div>
