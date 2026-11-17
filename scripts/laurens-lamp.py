@@ -105,7 +105,7 @@ async def main():
                         if ARMED:
                             await flash(lamp)
                         last_flash = time.monotonic()
-                        print(f"{datetime.now(timezone.utc).isoformat()} {\'flashed\' if ARMED else \'would flash\'}: "
+                        print(f"{datetime.now(timezone.utc).isoformat()} {'flashed' if ARMED else 'would flash'}: "
                               + "; ".join(f"{event.get('icao')}: {event.get('kind')}" for event in pending),
                               flush=True)
             except Exception as exc:
