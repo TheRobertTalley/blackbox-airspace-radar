@@ -110,6 +110,25 @@ function identifierDetail(item: Aircraft) {
   return item.callsign ? `${escapeHtml(item.icao)} · tail unknown` : 'Tail number unknown';
 }
 
+// Compatibility for the public dashboard while BlackBox's local API is still on an older build.
+// The server remains authoritative when it supplies classifications.
+function withInterestFallback(item: Aircraft): Aircraft {
+  if (item.interestReasons !== undefined) return item;
+  const reasons: NonNullable<Aircraft['interestReasons']> = [];
+  const add = (kind: NonNullable<Aircraft['interestReasons']>[number]['kind'], label: string, detail: string) => reasons.push({ kind, label, detail });
+  const speed = speedMph(item);
+  if (!item.callsign && !item.registration) add('unmarked', 'UNMARKED', 'No callsign or registration available');
+  if (/^AE[0-9A-F]{4}$/i.test(item.icao)) add('military', 'MILITARY', 'Likely U.S. military ICAO block; not verified');
+  if (item.category?.toUpperCase() === 'B7') add('space', 'SPACE', 'Reported space/transatmospheric category');
+  if (speed !== null && speed > 550) add('speed', '>550 MPH', 'Ground speed');
+  if (speed !== null && speed < 25) add('speed', '<25 MPH', 'Ground speed');
+  if (item.altitudeFt !== null && item.altitudeFt > 42000) add('altitude', '>42K FT', 'Barometric altitude MSL');
+  if (item.altitudeFt !== null && item.altitudeFt < 1000) add('altitude', '<1K FT', 'Barometric altitude MSL');
+  if (item.emergency && item.emergency !== 'none') add('emergency', 'EMERGENCY', 'Aircraft-reported emergency');
+  if (['7500', '7600', '7700'].includes(item.squawk)) add('emergency', 'SQUAWK ' + item.squawk, 'Special transponder code');
+  return { ...item, interestReasons: reasons };
+}
+
 function renderInterest() {
   const interestFilter = document.querySelector<HTMLButtonElement>('#interest-filter')!;
   interestFilter.setAttribute('aria-pressed', String(interestOnly));
@@ -333,7 +352,7 @@ function applyPayload(payload: LivePayload & { analysis?: { flags?: typeof lates
   duration.textContent = reception?.averageSeconds != null ? `${Math.round(reception.averageSeconds / 60)} MIN / ${reception.completedFlights} FLIGHTS` : 'LEARNING';
   const notice = document.querySelector<HTMLElement>('#airspace-events')!;
   notice.textContent = latestAlerts.length ? latestAlerts.slice(-3).reverse().map(a => `${a.identifier}: ${a.kind}`).join(' | ') : 'NO BEHAVIOR ALERTS';
-  renderAircraft(payload.aircraft);
+  renderAircraft(payload.aircraft.map(withInterestFallback));
   drawReceiver(payload.status);
   elements.aircraftCount.textContent = String(payload.status.aircraftCount);
   elements.positionedCount.textContent = String(payload.status.positionedCount);
