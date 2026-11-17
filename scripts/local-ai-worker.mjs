@@ -97,5 +97,5 @@ async function cycle() {
   } finally { busy = false; }
 }
 await cycle();
-setInterval(() => void cycle(), POLL_MS).unref?.();
-// Keep the worker alive without polling the radio; setInterval above is the only recurring task.
+setInterval(() => void cycle(), POLL_MS);
+// This background worker only polls the local read-only API and Ollama, never the SDR.
