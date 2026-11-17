@@ -39,6 +39,20 @@
           <div class="receiver-line"><span>AVG RX</span><strong id="reception-average">LEARNING</strong></div>
           <div class="receiver-line"><span>EVENTS</span><strong id="airspace-events" role="status">NO BEHAVIOR ALERTS</strong></div>
           <div class="rx-lock"><span aria-hidden="true">◉</span> TRANSMIT PATH DISABLED</div>
+          <section class="sensor-overview" aria-label="Local sensor telemetry">
+            <h2>LOCAL SENSORS</h2>
+            <div class="sensor-row"><span>WEATHER</span><strong id="sensor-weather">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>WATER METER</span><strong id="sensor-water">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>DRONE ID</span><strong id="sensor-remoteid">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>RC LINKS</span><strong id="sensor-rc">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>WI-FI RF</span><strong id="sensor-wifi">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>BLE RF</span><strong id="sensor-ble">NOT CONNECTED</strong></div>
+            <details class="ai-panel">
+              <summary>LOCAL AI <strong id="local-ai-status">NOT RUNNING</strong></summary>
+              <p id="local-ai-summary">No locally generated summary is available.</p>
+              <small>AI commentary only; verified sensors determine alerts.</small>
+            </details>
+          </section>
         </aside>
 
         <aside class="traffic-panel glass" aria-label="Aircraft list">
@@ -48,7 +62,7 @@
           </div>
           <section class="interest-panel" aria-labelledby="interest-heading">
             <div class="interest-heading"><h2 id="interest-heading">Planes of interest</h2><span id="interest-count">0</span><button id="interest-filter" class="interest-filter" type="button" aria-pressed="false">FILTER INTEREST</button></div>
-            <p class="interest-subtitle">Military · Unmarked · Space · >550 / <25 mph · >42K / <1K ft</p>
+            <p class="interest-subtitle">Military · Unmarked · Space · &gt;550 / &lt;25 mph · &gt;42K / &lt;1K ft</p>
             <div id="interest-list" class="interest-list"><p class="interest-empty">Waiting for live aircraft.</p></div>
             <details class="interest-coverage"><summary>Detection coverage</summary><p>Military labels use receiver flags or a likely US military address. Rockets appear only if received with the space / transatmospheric category; this is not a launch tracker. Speeds are ground speed. Use FILTER INTEREST to show only matching live aircraft; SHOW ALL restores the default view. Low altitude is barometric MSL, not terrain clearance.</p></details>
           </section>

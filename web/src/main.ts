@@ -197,7 +197,7 @@ function renderAircraft(items: Aircraft[]) {
   for (const item of positioned) {
     const position: L.LatLngExpression = [item.latitude!, item.longitude!];
     const finding = latestAnalysis[item.icao];
-    const tooltip = `${escapeHtml(item.registration || item.callsign || item.icao)} · ${formatSpeed(item)} mph · ${formatNumber(item.altitudeFt, ' ft')}${finding ? ' · ' + finding.kinds.join(', ') : ''}`;
+    const tooltip = `${escapeHtml(item.registration || item.callsign || item.icao)} · ${formatSpeed(item)} mph · ${formatNumber(item.altitudeFt, ' ft')}${item.sourceBand === '978 UAT' ? ' · 978 UAT' : ''}${finding ? ' · ' + finding.kinds.join(', ') : ''}`;
     const existing = markers.get(item.icao);
     if (existing) {
       existing.setLatLng(position).setIcon(aircraftIcon(item, selectedIcao === item.icao));
@@ -235,7 +235,7 @@ function renderList() {
   }
   const liveRows = liveItems.map((item) => `
     <div class="aircraft-entry"><button class="aircraft-row${selectedIcao === item.icao ? ' selected' : ''}" data-icao="${escapeHtml(item.icao)}" type="button">
-      <span><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${identifierDetail(item)}</small></span>
+      <span><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${identifierDetail(item)}${item.sourceBand === '978 UAT' ? ' · 978 UAT' : ''}</small></span>
       <span>${formatNumber(item.altitudeFt)}<small>FT</small></span>
       <span title="Ground speed: ${formatNumber(item.groundSpeedKt, ' kt')}">${formatSpeed(item)}<small>MPH</small>${machDisplay(item)}</span>
       <span>${Math.round(item.seenSeconds)}<small>SEC</small></span>
@@ -344,7 +344,52 @@ function drawReceiver(status: ReceiverStatus) {
   });
 }
 
-function applyPayload(payload: LivePayload & { analysis?: { flags?: typeof latestAnalysis; reception?: { averageSeconds: number | null; completedFlights: number } }; alerts?: typeof latestAlerts }) {
+type LocalSensor = { status: string; data?: Record<string, unknown> | null; lastSeenAt?: string | null };
+type LocalAiStatus = { status: string; generatedAt: string | null; model: string | null; summary: string | null };
+function renderLocalSensors(sensors?: Record<string, LocalSensor>, localAi?: LocalAiStatus) {
+  if (sensors) {
+    const labels = ['weather', 'water', 'remoteid', 'rc', 'wifi', 'ble'];
+    for (const key of labels) {
+      const node = document.querySelector<HTMLElement>('#sensor-' + key);
+      if (!node) continue;
+      const sensor = sensors[key];
+      node.classList.toggle('is-online', sensor?.status === 'online');
+      if (!sensor || sensor.status !== 'online') {
+        node.textContent = sensor?.status === 'stale' ? 'STALE'
+          : sensor?.status === 'offline' ? 'OFFLINE'
+          : sensor?.status === 'invalid' ? 'INVALID DATA' : 'NOT CONNECTED';
+        continue;
+      }
+      const data = sensor.data || {};
+      if (key === 'weather') {
+        const t = data.temperatureC;
+        const h = data.humidityPercent;
+        const w = data.windKmh;
+        const parts: string[] = [];
+        if (typeof t === 'number') parts.push((t * 9 / 5 + 32).toFixed(1) + '°F');
+        if (typeof h === 'number') parts.push(h.toFixed(0) + '% RH');
+        if (typeof w === 'number') parts.push((w / 1.609344).toFixed(1) + ' mph');
+        node.textContent = parts.join(' · ') || 'RECEIVING';
+      } else if (key === 'water') node.textContent = 'RECEIVING · PRIVATE';
+      else if (key === 'remoteid') node.textContent = 'REMOTE ID SEEN';
+      else if (key === 'rc') node.textContent = String(data.family || 'RC') + ' ACTIVITY';
+      else {
+        const occupancy = data.occupancyPercent;
+        node.textContent = typeof occupancy === 'number' ? occupancy.toFixed(0) + '% OCCUPANCY' : 'RECEIVING';
+      }
+    }
+  }
+  if (localAi) {
+    const status = document.querySelector<HTMLElement>('#local-ai-status');
+    const summary = document.querySelector<HTMLElement>('#local-ai-summary');
+    if (status) status.textContent = localAi.status === 'ready' ? 'READY' : localAi.status.toUpperCase();
+    if (summary) summary.textContent = localAi.status === 'ready' && localAi.summary
+      ? localAi.summary : 'No current local Ollama summary. AI does not determine alarms.';
+  }
+}
+
+function applyPayload(payload: LivePayload & { analysis?: { flags?: typeof latestAnalysis; reception?: { averageSeconds: number | null; completedFlights: number } }; alerts?: typeof latestAlerts; sensors?: Record<string, LocalSensor>; localAi?: LocalAiStatus }) {
+  renderLocalSensors(payload.sensors, payload.localAi);
   latestAnalysis = payload.analysis?.flags || latestAnalysis;
   latestAlerts = payload.alerts || latestAlerts;
   const reception = payload.analysis?.reception;
@@ -402,15 +447,19 @@ function connect() {
     polling = true;
     try {
       const signal = AbortSignal.timeout(10000);
-      const [statusResponse, aircraftResponse, analysisResponse] = await Promise.all([
+      const [statusResponse, aircraftResponse, analysisResponse, sensorsResponse, aiResponse] = await Promise.all([
         fetch(`${apiBase}/api/v1/status`, { signal, cache: 'no-store' }),
         fetch(`${apiBase}/api/v1/aircraft`, { signal, cache: 'no-store' }),
-    fetch(`${apiBase}/api/v1/analysis`, { signal, cache: 'no-store' })
+    fetch(`${apiBase}/api/v1/analysis`, { signal, cache: 'no-store' }),
+        fetch(`${apiBase}/api/v1/sensors`, { signal, cache: 'no-store' }),
+        fetch(`${apiBase}/api/v1/local-ai`, { signal, cache: 'no-store' })
       ]);
       if (!statusResponse.ok || !aircraftResponse.ok) throw new Error('receiver feed unavailable');
       const [status, snapshot] = await Promise.all([statusResponse.json(), aircraftResponse.json()]);
       const analysisPayload = analysisResponse.ok ? await analysisResponse.json() : {};
-      if (generation === connectionGeneration && fallbackTimer !== null) applyPayload({ status, aircraft: snapshot.aircraft, ...analysisPayload } as LivePayload);
+      const sensorsPayload = sensorsResponse.ok ? await sensorsResponse.json() : {};
+      const aiPayload = aiResponse.ok ? await aiResponse.json() : {};
+      if (generation === connectionGeneration && fallbackTimer !== null) applyPayload({ status, aircraft: snapshot.aircraft, ...analysisPayload, ...sensorsPayload, ...aiPayload } as LivePayload);
     } catch {
       if (generation === connectionGeneration && fallbackTimer !== null) setConnection(false, 'receiver feed unavailable');
     } finally { polling = false; }

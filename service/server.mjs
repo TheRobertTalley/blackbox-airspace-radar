@@ -4,6 +4,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { corsOriginAllowed, groupTracks, loadConfig, normalizeAircraft } from './lib.mjs';
 import { analyzeAirspace, recentOverhead } from './airspace.mjs';
+import { readSensors, detectSensorTransitions, rfRise } from './sensors.mjs';
 
 const configPath = process.env.RADAR_CONFIG || path.join(import.meta.dirname, 'config.json');
 const config = loadConfig(configPath);
@@ -43,6 +44,60 @@ let alerts = [];
 const alertedAt = new Map();
 const recentRows = db.prepare('SELECT icao, observed_at, latitude, longitude, altitude_ft, callsign FROM observations WHERE observed_at >= ? ORDER BY icao, observed_at LIMIT 150000');
 const streams = new Set();
+const sensorDirectory = config.sensorDirectory || path.join(path.dirname(config.databasePath), 'sensors');
+const sensorPaths = Object.fromEntries(['weather', 'water', 'remoteid', 'rc', 'wifi', 'ble']
+  .map(channel => [channel, path.join(sensorDirectory, channel + '.json')]));
+let sensors = readSensors(sensorPaths);
+const rfSamples = [];
+const sensorAlertedAt = new Map();
+let decoderAgeSeconds = null;
+const aiSummaryPath = path.join(path.dirname(config.databasePath), 'ai-summary.json');
+let localAi = { status: 'not-running', generatedAt: null, model: null, summary: null, advisoryOnly: true };
+function refreshLocalAi() {
+  try {
+    const stat = fs.statSync(aiSummaryPath);
+    if (stat.size > 16_384) throw new Error('AI output oversized');
+    const raw = JSON.parse(fs.readFileSync(aiSummaryPath, 'utf8'));
+    const at = Date.parse(raw.generatedAt);
+    if (!Number.isFinite(at) || at > Date.now() + 10_000 || typeof raw.summary !== 'string') throw new Error('Invalid AI output');
+    const ageMs = Date.now() - at;
+    localAi = ageMs <= 30 * 60_000 ? {
+      status: 'ready', generatedAt: new Date(at).toISOString(),
+      model: typeof raw.model === 'string' ? raw.model.slice(0, 100) : 'local model',
+      summary: raw.summary.slice(0, 1200), advisoryOnly: true
+    } : { status: 'stale', generatedAt: new Date(at).toISOString(), model: null, summary: null, advisoryOnly: true };
+  } catch {
+    localAi = { status: 'not-running', generatedAt: null, model: null, summary: null, advisoryOnly: true };
+  }
+}
+refreshLocalAi();
+function reportSensorEvents(now = Date.now()) {
+  try {
+    const next = readSensors(sensorPaths, now);
+    const transitions = detectSensorTransitions(sensors, next, now);
+    for (const event of transitions) alerts.push(event);
+    sensors = next;
+    for (const band of ['wifi', 'ble']) {
+      const entry = sensors[band];
+      if (entry.status !== 'online' || !entry.data || !entry.lastSeenAt) continue;
+      const observedAt = Date.parse(entry.lastSeenAt);
+      if (rfSamples.some(sample => sample.band === band && sample.observedAt === observedAt)) continue;
+      rfSamples.push({ band, observedAt, occupancyPercent: entry.data.occupancyPercent });
+    }
+    while (rfSamples.length && rfSamples[0].observedAt < now - 3600_000) rfSamples.shift();
+    for (const rise of rfRise(rfSamples, now)) {
+      const key = 'rf:' + rise.band;
+      if (now - (sensorAlertedAt.get(key) || 0) < 30 * 60_000) continue;
+      sensorAlertedAt.set(key, now);
+      alerts.push({ id: key + ':' + now, kind: 'RF ACTIVITY RISE', source: rise.band,
+        observedAt: new Date(now).toISOString(),
+        detail: rise.band.toUpperCase() + ' occupancy increased; cannot infer people or direction' });
+    }
+  } catch (error) {
+    console.error('Sensor poll error:', error.message);
+  }
+}
+
 
 function responseJson(response, status, body, origin) {
   response.writeHead(status, {
@@ -82,7 +137,7 @@ function serveWeb(pathname, response) {
 function statusPayload() {
   const age = lastReadAt ? Math.max(0, (Date.now() - lastReadAt) / 1000) : null;
   return {
-    ok: age !== null && age < 5 && !lastError,
+    ok: age !== null && age < 5 && decoderAgeSeconds !== null && decoderAgeSeconds < 20 && !lastError,
     rxOnly: true,
     source: 'bladeRF x40 / hosted FPGA / readsb software decoder',
     aircraftCount: aircraft.length,
@@ -90,6 +145,7 @@ function statusPayload() {
     messageCount: sourceMessageCount,
     hasReceivedMessages: sourceMessageCount > 0,
     dataAgeSeconds: age,
+    decoderAgeSeconds,
     generatedAt: sourceGeneratedAt,
     lastError,
     historyRecords: Number(countHistory.get().count),
@@ -100,7 +156,7 @@ function statusPayload() {
 }
 
 function publish() {
-  const payload = `event: aircraft\ndata: ${JSON.stringify({ status: statusPayload(), aircraft, analysis: airspaceAnalysis, alerts: alerts.slice(-20) })}\n\n`;
+  const payload = `event: aircraft\ndata: ${JSON.stringify({ status: statusPayload(), aircraft, analysis: airspaceAnalysis, alerts: alerts.slice(-20), sensors, localAi })}\n\n`;
   for (const response of streams) response.write(payload);
 }
 
@@ -108,6 +164,16 @@ function pollReadsb() {
   try {
     const raw = JSON.parse(fs.readFileSync(config.readsbJsonPath, 'utf8'));
     const now = Date.now();
+    const sourceTime = Number.isFinite(raw.now) ? raw.now * 1000 : NaN;
+    decoderAgeSeconds = Number.isFinite(sourceTime) ? (now - sourceTime) / 1000 : null;
+    if (decoderAgeSeconds === null || decoderAgeSeconds > 20 || decoderAgeSeconds < -20) {
+      aircraft = [];
+      sourceGeneratedAt = Number.isFinite(sourceTime) ? new Date(sourceTime).toISOString() : null;
+      lastError = 'decoder snapshot stale or missing timestamp';
+      lastReadAt = null;
+      publish();
+      return;
+    }
     // Optional second SDR decoding 978 MHz UAT into readsb-compatible JSON.
     // No 978 reception is claimed unless the independently configured file exists and is fresh.
     let uat = [];
@@ -138,8 +204,8 @@ function pollReadsb() {
       if (item.latitude === null || item.longitude === null) continue;
       insertObservation.run(
         item.icao,
-        Math.floor(now / interval),
-        now,
+        Math.floor(Date.parse(item.observedAt) / interval),
+        Date.parse(item.observedAt),
         item.latitude,
         item.longitude,
         item.altitudeFt,
@@ -149,7 +215,9 @@ function pollReadsb() {
     // Position history is analyzed separately to keep the 1 Hz receive path responsive.
     publish();
   } catch (error) {
+    aircraft = [];
     lastError = error.code === 'ENOENT' ? 'receiver data unavailable' : String(error.message || error);
+    publish();
   }
 }
 
@@ -210,6 +278,8 @@ const server = http.createServer((request, response) => {
 
   if (url.pathname === '/health') return responseJson(response, statusPayload().ok ? 200 : 503, statusPayload(), origin);
   if (url.pathname === '/api/v1/status') return responseJson(response, 200, statusPayload(), origin);
+  if (url.pathname === '/api/v1/local-ai') return responseJson(response, 200, { localAi }, origin);
+  if (url.pathname === '/api/v1/sensors') return responseJson(response, 200, { sensors, lastUpdatedAt: new Date().toISOString() }, origin);
   if (url.pathname === '/api/v1/analysis') return responseJson(response, 200, { analysis: airspaceAnalysis, alerts: alerts.slice(-50) }, origin);
   if (url.pathname === '/api/v1/what-was-that') {
     // Uses the public reference point, not a private home location.
@@ -248,6 +318,8 @@ setInterval(pollReadsb, 1000).unref();
 setInterval(enforceRetention, 3600000).unref();
 setTimeout(analyzeAndAlert, 3000).unref();
 setInterval(analyzeAndAlert, 30000).unref();
+setInterval(reportSensorEvents, 10000).unref();
+setInterval(refreshLocalAi, 15000).unref();
 server.listen(config.port, config.host, () => {
   console.log(`BlackBox Airspace API listening on http://${config.host}:${config.port} (RX only)`);
 });

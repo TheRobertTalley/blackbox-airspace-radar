@@ -5,6 +5,7 @@ export interface Aircraft {
   longitude: number | null;
   altitudeFt: number | null;
   groundSpeedKt: number | null;
+  sourceBand?: '1090 ADS-B' | '978 UAT';
   groundSpeedMph?: number | null;
   registration?: string | null;
   registrationSource?: 'receiver' | 'icao-derived' | null;
