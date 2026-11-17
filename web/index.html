@@ -39,6 +39,20 @@
           <div class="receiver-line"><span>AVG RX</span><strong id="reception-average">LEARNING</strong></div>
           <div class="receiver-line"><span>EVENTS</span><strong id="airspace-events" role="status">NO BEHAVIOR ALERTS</strong></div>
           <div class="rx-lock"><span aria-hidden="true">◉</span> TRANSMIT PATH DISABLED</div>
+          <section class="sensor-overview" aria-label="Local sensor telemetry">
+            <h2>LOCAL SENSORS</h2>
+            <div class="sensor-row"><span>WEATHER</span><strong id="sensor-weather">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>WATER METER</span><strong id="sensor-water">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>DRONE ID</span><strong id="sensor-remoteid">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>RC LINKS</span><strong id="sensor-rc">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>WI-FI RF</span><strong id="sensor-wifi">NOT CONNECTED</strong></div>
+            <div class="sensor-row"><span>BLE RF</span><strong id="sensor-ble">NOT CONNECTED</strong></div>
+            <details class="ai-panel">
+              <summary>LOCAL AI <strong id="local-ai-status">NOT RUNNING</strong></summary>
+              <p id="local-ai-summary">No locally generated summary is available.</p>
+              <small>AI commentary only; verified sensors determine alerts.</small>
+            </details>
+          </section>
         </aside>
 
         <aside class="traffic-panel glass" aria-label="Aircraft list">
