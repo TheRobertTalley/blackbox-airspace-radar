@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 
 const VALID_KINDS = ['weather', 'water', 'remoteid', 'rc', 'rf'];
+const SENSOR_CHANNELS = ['weather', 'water', 'remoteid', 'rc', 'wifi', 'ble'];
 const MAX_AGE_MS = Object.freeze({
   weather: 20 * 60_000, water: 12 * 60 * 60_000,
   remoteid: 90_000, rc: 90_000, rf: 90_000
@@ -64,18 +65,21 @@ export function projectSensor(kind, raw, now = Date.now()) {
 
 export function readSensors(paths = {}, now = Date.now()) {
   const sensors = {};
-  for (const kind of VALID_KINDS) {
-    const filePath = paths[kind];
+  for (const channel of SENSOR_CHANNELS) {
+    const kind = channel === 'wifi' || channel === 'ble' ? 'rf' : channel;
+    const filePath = paths[channel];
     if (typeof filePath !== 'string' || !filePath.trim()) {
-      sensors[kind] = emptyState(kind);
+      sensors[channel] = { ...emptyState(kind), kind: channel };
       continue;
     }
     try {
       const data = fs.readFileSync(filePath, 'utf8');
       if (data.length > 64_000) throw new Error('oversized adapter payload');
-      sensors[kind] = projectSensor(kind, JSON.parse(data), now);
+      const projected = projectSensor(kind, JSON.parse(data), now);
+      sensors[channel] = { ...projected, kind: channel };
+      if (kind === 'rf' && projected.status === 'online' && projected.data.band !== channel) sensors[channel] = { ...emptyState(kind), kind: channel, status: 'invalid' };
     } catch (error) {
-      sensors[kind] = { ...emptyState(kind), status: error.code === 'ENOENT' ? 'offline' : 'invalid' };
+      sensors[channel] = { ...emptyState(kind), kind: channel, status: error.code === 'ENOENT' ? 'offline' : 'invalid' };
     }
   }
   return sensors;
