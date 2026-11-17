@@ -2,6 +2,7 @@ import L, { Circle, Map as LeafletMap, Marker } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './style.css';
 import type { Aircraft, LivePayload, ReceiverStatus } from './types';
+import { compareHistory, type HistorySortKey } from './history-sort';
 
 const endpointKey = 'blackbox-airspace-api';
 const receiverApiBase = 'https://blackbox.tailade622.ts.net';
@@ -18,6 +19,11 @@ interface HistoryTrack {
   latitude: number;
   longitude: number;
   altitudeFt: number | null;
+  groundSpeedMph: number | null;
+  mach?: Aircraft['mach'];
+  machSource?: Aircraft['machSource'];
+  registration?: Aircraft['registration'];
+  registrationSource?: Aircraft['registrationSource'];
   pointCount: number;
   firstObservedAt: string;
   lastObservedAt: string;
@@ -77,16 +83,16 @@ let interestOnly = false;
 let latestAnalysis: Record<string, { kinds: string[]; identifier: string; durationSeconds: number }> = {};
 let latestAlerts: { id: string; icao: string; identifier: string; kind: string; observedAt: string }[] = [];
 
-function speedMph(item: Aircraft) {
-  return item.groundSpeedMph ?? (item.groundSpeedKt === null ? null : item.groundSpeedKt * 1852 / 1609.344);
+function speedMph(item: { groundSpeedMph?: number | null; groundSpeedKt?: number | null }) {
+  return item.groundSpeedMph ?? (item.groundSpeedKt == null ? null : item.groundSpeedKt * 1852 / 1609.344);
 }
 
-function formatSpeed(item: Aircraft) {
+function formatSpeed(item: { groundSpeedMph?: number | null; groundSpeedKt?: number | null }) {
   const speed = speedMph(item);
   return speed === null ? '—' : speed.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
-function machDisplay(item: Aircraft) {
+function machDisplay(item: Pick<Aircraft, 'mach' | 'machSource'>) {
   if (item.mach == null || !Number.isFinite(item.mach)) return '<small class="mach-value" title="Mach unavailable: no usable speed and temperature or altitude">Mach —</small>';
   const estimated = item.machSource !== 'reported';
   const detail = item.machSource === 'ground-estimate' ? 'Estimate from ground speed and temperature/standard atmosphere; wind is not accounted for. Not measured airspeed Mach.'
@@ -226,8 +232,8 @@ function renderList() {
   const liveIds = new Set(currentAircraft.map((item) => item.icao));
   const historyItems = (interestOnly ? [] : historyTracks)
     .filter((item) => !(liveIds.has(item.icao) && Date.now() - Date.parse(item.lastObservedAt) < 120000))
-    .filter((item) => !query || item.icao.includes(query) || item.callsign.toUpperCase().includes(query))
-    .sort((left, right) => Date.parse(right.lastObservedAt) - Date.parse(left.lastObservedAt));
+    .filter((item) => !query || item.icao.includes(query) || item.callsign.toUpperCase().includes(query) || item.registration?.includes(query))
+    .sort((left, right) => compareHistory(left, right, historySort.value as HistorySortKey, historyDirection.value === 'asc'));
   if (!liveItems.length && !historyItems.length) {
     const hasAnyAircraft = currentAircraft.length || historyTracks.length;
     elements.list.innerHTML = `<div class="empty-list"><strong>${hasAnyAircraft ? 'NO MATCHES' : 'NO TRAFFIC'}</strong><span>${hasAnyAircraft ? 'Adjust the aircraft filter.' : selectedHistoryHours ? 'No aircraft saved in this window.' : 'Waiting for live aircraft.'}</span></div>`;
@@ -243,13 +249,14 @@ function renderList() {
   const historyRows = historyItems.map((item) => {
     const age = formatHistoryAge(item.lastObservedAt);
     return `<div class="aircraft-entry"><button class="aircraft-row history${selectedHistoryTrackId === item.trackId ? ' selected' : ''}" data-history-id="${escapeHtml(item.trackId)}" type="button">
-      <span><strong>${escapeHtml(item.callsign || item.icao)}</strong><small>${item.icao} · HISTORY</small></span>
+      <span><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${item.icao} · ${item.pointCount} PTS</small></span>
       <span>${formatNumber(item.altitudeFt)}<small>FT</small></span>
-      <span>${item.pointCount}<small>PTS</small></span>
-      <span>${age.value}<small>${age.unit}</small></span>
+      <span title="Ground speed at the last saved point. Older records may have no speed.">${formatSpeed(item)}<small>MPH</small>${machDisplay(item)}</span>
+      <span title="Last seen: ${escapeHtml(new Date(item.lastObservedAt).toLocaleString())}">${age.value}<small>${age.unit}</small></span>
     </button>${copyButton(item)}</div>`;
   }).join('');
-  elements.list.innerHTML = liveRows + historyRows;
+  elements.list.innerHTML = (selectedHistoryHours && liveRows ? '<div class="list-section-label">LIVE NOW</div>' : '') + liveRows
+    + (historyRows ? '<div class="list-section-label">SAVED TRACKS · LAST RECORDED VALUES</div>' : '') + historyRows;
   elements.list.querySelectorAll<HTMLButtonElement>('[data-icao]').forEach((button) => {
     button.addEventListener('click', () => selectLiveAircraft(button.dataset.icao || ''));
   });
@@ -312,7 +319,7 @@ function renderHistoricalAircraft() {
   }
   for (const item of visible) {
     const position: L.LatLngExpression = [item.latitude, item.longitude];
-    const tooltip = `${item.callsign || item.icao} · HISTORY · ${item.pointCount} PTS`;
+    const tooltip = `${escapeHtml(item.callsign || item.icao)} · HISTORY · ${formatSpeed(item)} mph · ${item.pointCount} PTS`;
     const existing = historyMarkers.get(item.trackId);
     if (existing) {
       existing.setLatLng(position).setIcon(historyAircraftIcon(item, selectedHistoryTrackId === item.trackId)).setTooltipContent(tooltip);
@@ -473,7 +480,9 @@ function connect() {
 }
 
 async function showHistory(hours: number) {
+  const requestId = ++historyRequestId;
   selectedHistoryHours = hours;
+  document.querySelector<HTMLElement>('#history-sort-controls')!.hidden = !hours;
   document.querySelectorAll<HTMLButtonElement>('.window-button').forEach((button) => button.classList.toggle('active', Number(button.dataset.hours) === hours));
   elements.windowLabel.textContent = hours === 0
     ? 'LIVE'
@@ -494,7 +503,10 @@ async function showHistory(hours: number) {
     const geojson = await response.json() as GeoJSON.FeatureCollection<GeoJSON.LineString, {
       trackId?: string; icao?: string; callsign?: string; pointCount?: number;
       firstObservedAt?: string; lastObservedAt?: string; altitudeFt?: number | null;
+      groundSpeedMph?: number | null; mach?: Aircraft['mach']; machSource?: Aircraft['machSource'];
+      registration?: Aircraft['registration']; registrationSource?: Aircraft['registrationSource'];
     }>;
+    if (requestId !== historyRequestId) return;
     historyTracks = geojson.features.flatMap((feature, index) => {
       const coordinates = feature.geometry?.coordinates;
       const last = coordinates?.at(-1);
@@ -513,6 +525,9 @@ async function showHistory(hours: number) {
         icao: (feature.properties?.icao || 'UNKNOWN').toUpperCase(),
         callsign: (feature.properties?.callsign || '').trim(),
         latitude, longitude,
+        groundSpeedMph: typeof feature.properties?.groundSpeedMph === 'number' && Number.isFinite(feature.properties.groundSpeedMph) ? feature.properties.groundSpeedMph : null,
+        mach: feature.properties?.mach, machSource: feature.properties?.machSource,
+        registration: feature.properties?.registration, registrationSource: feature.properties?.registrationSource,
         altitudeFt: typeof propertyAltitude === 'number' && Number.isFinite(propertyAltitude)
           ? propertyAltitude
           : typeof coordinateAltitude === 'number' && Number.isFinite(coordinateAltitude) ? coordinateAltitude : null,
@@ -535,7 +550,7 @@ async function showHistory(hours: number) {
     renderList();
     updateHistorySummary();
   } catch {
-    elements.lastUpdate.textContent = 'HISTORY UNAVAILABLE';
+    if (requestId === historyRequestId) elements.lastUpdate.textContent = 'HISTORY UNAVAILABLE';
   }
 }
 
@@ -567,6 +582,11 @@ elements.clearApi.addEventListener('click', () => {
   connect();
   void showHistory(selectedHistoryHours);
 });
+const historySort = document.querySelector<HTMLSelectElement>('#history-sort')!;
+const historyDirection = document.querySelector<HTMLSelectElement>('#history-direction')!;
+let historyRequestId = 0;
+historySort.addEventListener('change', renderList);
+historyDirection.addEventListener('change', renderList);
 elements.filter.addEventListener('input', renderList);
 let copyNoticeTimer: ReturnType<typeof setTimeout>;
 document.querySelector('.traffic-panel')!.addEventListener('click', async (event) => {

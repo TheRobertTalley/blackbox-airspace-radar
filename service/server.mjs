@@ -1,3 +1,4 @@
+import { prepareHistory } from './history.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,11 +29,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS observations_time ON observations(observed_at);
 `);
 
-const insertObservation = db.prepare(`
-  INSERT OR REPLACE INTO observations
-  (icao, bucket, observed_at, latitude, longitude, altitude_ft, callsign)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-`);
+const insertObservation = prepareHistory(db);
 const countHistory = db.prepare('SELECT COUNT(*) AS count FROM observations');
 let aircraft = [];
 let sourceGeneratedAt = null;
@@ -202,15 +199,7 @@ function pollReadsb() {
     const interval = config.sampleIntervalSeconds * 1000;
     for (const item of aircraft) {
       if (item.latitude === null || item.longitude === null) continue;
-      insertObservation.run(
-        item.icao,
-        Math.floor(Date.parse(item.observedAt) / interval),
-        Date.parse(item.observedAt),
-        item.latitude,
-        item.longitude,
-        item.altitudeFt,
-        item.callsign
-      );
+      insertObservation(item, Date.parse(item.observedAt), interval);
     }
     // Position history is analyzed separately to keep the 1 Hz receive path responsive.
     publish();

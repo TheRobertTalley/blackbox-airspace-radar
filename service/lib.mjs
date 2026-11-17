@@ -74,14 +74,23 @@ export function groupTracks(rows, segmentGapMs = 15 * 60 * 1000) {
         coordinates: [],
         firstObservedAt: row.observed_at,
         lastObservedAt: row.observed_at,
-        altitudeFt: null
+        altitudeFt: null,
+        groundSpeedMph: null, mach: null, machSource: null,
+        registration: null, registrationSource: null,
+        samples: []
       };
       tracks.push(current);
     }
     current.coordinates.push([row.longitude, row.latitude, row.altitude_ft, row.observed_at]);
     current.lastObservedAt = row.observed_at;
     if (typeof row.callsign === 'string' && row.callsign.trim()) current.callsign = row.callsign.trim();
-    if (Number.isFinite(Number(row.altitude_ft))) current.altitudeFt = Number(row.altitude_ft);
+    current.altitudeFt = Number.isFinite(row.altitude_ft) ? row.altitude_ft : null;
+    current.groundSpeedMph = Number.isFinite(row.ground_speed_mph) ? row.ground_speed_mph : null;
+    current.mach = Number.isFinite(row.mach) ? row.mach : null;
+    current.machSource = row.mach_source ?? null;
+    current.registration = row.registration ?? null;
+    current.registrationSource = row.registration_source ?? null;
+    current.samples.push({ observedAt: new Date(row.observed_at).toISOString(), groundSpeedMph: current.groundSpeedMph, mach: current.mach, machSource: current.machSource });
   }
   return {
     type: 'FeatureCollection',
@@ -98,7 +107,11 @@ export function groupTracks(rows, segmentGapMs = 15 * 60 * 1000) {
           pointCount: track.coordinates.length,
           firstObservedAt: new Date(track.firstObservedAt).toISOString(),
           lastObservedAt: new Date(track.lastObservedAt).toISOString(),
-          altitudeFt: track.altitudeFt
+          altitudeFt: track.altitudeFt,
+          groundSpeedMph: track.groundSpeedMph,
+          mach: track.mach, machSource: track.machSource,
+          registration: track.registration, registrationSource: track.registrationSource,
+          samples: track.samples
         },
         geometry: { type: 'LineString', coordinates }
       };

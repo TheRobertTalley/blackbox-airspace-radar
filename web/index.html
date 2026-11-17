@@ -67,6 +67,15 @@
             <details class="interest-coverage"><summary>Detection coverage</summary><p>Military labels use receiver flags or a likely US military address. Rockets appear only if received with the space / transatmospheric category; this is not a launch tracker. Speeds are ground speed. Use FILTER INTEREST to show only matching live aircraft; SHOW ALL restores the default view. Low altitude is barometric MSL, not terrain clearance.</p></details>
           </section>
           <p id="receiver-health-detail" class="receiver-health-detail" role="status"></p>
+          <div id="history-sort-controls" class="history-sort-controls" hidden>
+            <label>History sort<select id="history-sort" aria-label="History sort">
+              <option value="lastObservedAt">Last seen</option><option value="firstObservedAt">First seen</option>
+              <option value="identifier">Identifier</option><option value="icao">ICAO</option>
+              <option value="altitudeFt">Altitude</option><option value="groundSpeedMph">Speed (mph)</option>
+              <option value="mach">Mach</option><option value="pointCount">Point count</option>
+            </select></label>
+            <label>Order<select id="history-direction" aria-label="History order"><option value="desc">Descending</option><option value="asc">Ascending</option></select></label>
+          </div>
           <div class="aircraft-list-head"><span>IDENT</span><span>ALT</span><span>MPH / MACH</span><span>AGE</span></div>
           <div id="aircraft-list" class="aircraft-list" tabindex="0">
             <div class="empty-list"><strong>NO LIVE TRAFFIC</strong><span>Waiting for aircraft received by BlackBox.</span></div>
