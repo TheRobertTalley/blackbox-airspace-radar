@@ -5,11 +5,12 @@ on:
       - 'service/**'
       - 'web/**'
       - 'alexa/**'
+      - 'scripts/**'
       - 'package.json'
       - '.github/workflows/airspace-ci.yml'
   push:
     branches:
-      - feature/airspace-intelligence-alerts-20261117
+      - 'feature/**'
 permissions:
   contents: read
 jobs:
@@ -28,4 +29,6 @@ jobs:
       - run: npm run build
       - run: node --check alexa/index.cjs
       - run: node --check scripts/local-ai-summary.mjs
+      - run: node --check scripts/local-ai-worker.mjs
+      - run: node --check scripts/sensor-bridge.mjs
       - run: python3 -m py_compile scripts/laurens-lamp.py
