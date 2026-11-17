@@ -197,7 +197,7 @@ function renderAircraft(items: Aircraft[]) {
   for (const item of positioned) {
     const position: L.LatLngExpression = [item.latitude!, item.longitude!];
     const finding = latestAnalysis[item.icao];
-    const tooltip = `${escapeHtml(item.registration || item.callsign || item.icao)} · ${formatSpeed(item)} mph · ${formatNumber(item.altitudeFt, ' ft')}${finding ? ' · ' + finding.kinds.join(', ') : ''}`;
+    const tooltip = `${escapeHtml(item.registration || item.callsign || item.icao)} · ${formatSpeed(item)} mph · ${formatNumber(item.altitudeFt, ' ft')}${item.sourceBand === '978 UAT' ? ' · 978 UAT' : ''}${finding ? ' · ' + finding.kinds.join(', ') : ''}`;
     const existing = markers.get(item.icao);
     if (existing) {
       existing.setLatLng(position).setIcon(aircraftIcon(item, selectedIcao === item.icao));
@@ -235,7 +235,7 @@ function renderList() {
   }
   const liveRows = liveItems.map((item) => `
     <div class="aircraft-entry"><button class="aircraft-row${selectedIcao === item.icao ? ' selected' : ''}" data-icao="${escapeHtml(item.icao)}" type="button">
-      <span><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${identifierDetail(item)}</small></span>
+      <span><strong>${escapeHtml(item.callsign || item.registration || item.icao)}</strong><small>${identifierDetail(item)}${item.sourceBand === '978 UAT' ? ' · 978 UAT' : ''}</small></span>
       <span>${formatNumber(item.altitudeFt)}<small>FT</small></span>
       <span title="Ground speed: ${formatNumber(item.groundSpeedKt, ' kt')}">${formatSpeed(item)}<small>MPH</small>${machDisplay(item)}</span>
       <span>${Math.round(item.seenSeconds)}<small>SEC</small></span>
